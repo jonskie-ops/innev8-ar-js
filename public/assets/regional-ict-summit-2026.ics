@@ -1,0 +1,18 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//INNEV8 ICT Federation//Regional ICT Summit 2026//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:regional-ict-summit-2026@innev8-ict-federation
+DTSTAMP:20261011T000000Z
+DTSTART;VALUE=DATE:20261120
+DTEND;VALUE=DATE:20261122
+SUMMARY:Regional ICT Summit 2026
+LOCATION:Leyte Academic Center\, Barangay Pawing\, Palo\, Leyte
+DESCRIPTION:INNEV8 ICT Federation presents the Regional ICT Summit 2026. Br
+ idging Industries. Building Partnerships. Creating a Digital Future.
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+END:VCALENDAR
