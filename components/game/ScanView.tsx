@@ -11,8 +11,8 @@ import { ArrowRightIcon, CameraOffIcon, CloseIcon } from "./icons";
 const PER_SCAN = 3;
 
 const TURN_HINT: Record<NonNullable<Guide["turn"]>, string> = {
-  left: "A QR code is nearby: turn left",
-  right: "A QR code is nearby: turn right",
+  left: "is nearby: turn left",
+  right: "is nearby: turn right",
   down: "Look a little lower",
   up: "Look a little higher",
 };
@@ -22,32 +22,34 @@ const CAM_MESSAGE: Partial<Record<CamState, string>> = {
   unavailable: "No camera is available on this device.",
 };
 
-/** A few of the codes still to find, the deep-linked one (if any) first. */
-function pickHidden(found: Record<string, number>, preset?: Station) {
-  const rest = STATIONS.filter((s) => !found[s.id] && s !== preset).sort(() => Math.random() - 0.5);
-  return (preset && !found[preset.id] ? [preset, ...rest] : rest).slice(0, PER_SCAN);
+/** A few of the codes still to find, always including the one the player chose (if any). */
+function pickHidden(found: Record<string, number>, target?: Station) {
+  const rest = STATIONS.filter((s) => !found[s.id] && s !== target).sort(() => Math.random() - 0.5);
+  return (target && !found[target.id] ? [target, ...rest] : rest).slice(0, PER_SCAN);
 }
 
 /**
  * Full-screen AR scanner. The hunt's QR codes are virtual: a few of the ones still to find are hidden
  * around the player, invisible until the camera is held on their spot. Then the code assembles in 3D
- * and a tap collects it. (Test placement: random spots around you; the venue spots come later.)
+ * and a tap collects it. No set order: whichever code is fully scanned first is the one collected,
+ * even when the player came looking for a different one. (Test placement: random spots around you;
+ * the venue spots come later.)
  */
 export function ScanView({
-  preset,
+  target,
   found,
   onCatch,
   onClose,
 }: {
-  /** Start with this code straight ahead (deep link). */
-  preset?: Station;
+  /** The code the player chose to look for: always hidden here, and the radar points to it. */
+  target?: Station;
   found: Record<string, number>;
   onCatch: (station: Station) => void;
   onClose: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [hidden] = useState(() => pickHidden(found, preset));
+  const [hidden] = useState(() => pickHidden(found, target));
   const [phase, setPhase] = useState<ArPhase | "loading">("loading");
   const [station, setStation] = useState<Station | null>(null);
   const [cam, setCam] = useState<CamState | null>(null);
@@ -66,7 +68,7 @@ export function ScanView({
     let stage: { dispose: () => void } | undefined;
     import("./ar/stage")
       .then(({ createArStage }) =>
-        createArStage(hostRef.current!, videoRef.current!, hidden, preset, {
+        createArStage(hostRef.current!, videoRef.current!, hidden, target, {
           onPhase: (p, st) => {
             setPhase(p);
             setStation(st);
@@ -85,7 +87,7 @@ export function ScanView({
       alive = false;
       stage?.dispose();
     };
-  }, [hidden, preset]);
+  }, [hidden, target]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -98,12 +100,17 @@ export function ScanView({
   const count = Object.keys(found).length;
   const num = station ? `#${pad2(station.num)}` : "";
   const help = TEST_MODE && phase === "searching" ? guide : null; // radar and arrows are a test aid
+  const chosen = target && !found[target.id] ? target : undefined;
 
   let hint: ReactNode = "Starting AR…";
   if (failed) hint = "AR isn't available in this browser.";
   else if (phase === "searching") {
     hint = help?.turn ? (
-      TURN_HINT[help.turn]
+      help.turn === "left" || help.turn === "right" ? (
+        `${chosen ? `QR code #${pad2(chosen.num)}` : "A QR code"} ${TURN_HINT[help.turn]}`
+      ) : (
+        TURN_HINT[help.turn]
+      )
     ) : help ? (
       <>
         Hold still<span className="blink">…</span> something is here
@@ -146,8 +153,12 @@ export function ScanView({
       {help && (
         <div className="scan__radar" aria-hidden="true">
           <span className="scan__radar-cone"></span>
-          {help.blips.map((a, i) => (
-            <span key={i} className="scan__radar-blip" style={{ "--a": `${a}rad` } as CSSProperties}></span>
+          {help.blips.map((b, i) => (
+            <span
+              key={i}
+              className={b.target ? "scan__radar-blip is-target" : "scan__radar-blip"}
+              style={{ "--a": `${b.angle}rad` } as CSSProperties}
+            ></span>
           ))}
         </div>
       )}

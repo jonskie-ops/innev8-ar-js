@@ -955,6 +955,11 @@ code {
   font-size: 13px;
   color: var(--muted);
 }
+.dex__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .dex__when {
   font: 500 10px var(--font-m);
   letter-spacing: 0.14em;
@@ -2315,10 +2320,19 @@ button.psec__head {
   height: 8px;
   margin: -4px 0 0 -4px;
   border-radius: 2px;
-  background: var(--gold);
-  box-shadow: 0 0 8px var(--gold);
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
   transform: rotate(var(--a)) translateY(-27px);
   animation: blink 1.4s ease-in-out infinite;
+}
+/* The code the player chose to look for */
+.scan__radar-blip.is-target {
+  z-index: 1;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  background: var(--gold);
+  box-shadow: 0 0 10px var(--gold);
 }
 
 /* Arrow toward the closest hidden code */

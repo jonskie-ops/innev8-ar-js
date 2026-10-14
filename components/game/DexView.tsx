@@ -3,7 +3,7 @@
 import { useState, type CSSProperties } from "react";
 import { pad2 } from "@/lib/dom";
 import { POINTS, RARITY_LABEL, STATIONS, TOTAL, zoneName, type Station } from "@/lib/hunt";
-import { CheckIcon, DexIcon, ListIcon, MapIcon } from "./icons";
+import { CheckIcon, DexIcon, ListIcon, MapIcon, ScanIcon } from "./icons";
 import { QrTile } from "./QrTile";
 
 const timeFmt = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -13,10 +13,13 @@ type Layout = "list" | "grid";
 /** The collection: all QR codes as floating tiles, found ones lit up, the rest as ghosts with a clue. */
 export function DexView({
   found,
+  onFind,
   onShowOnMap,
   onPrize,
 }: {
   found: Record<string, number>;
+  /** Open the scanner looking for this code. */
+  onFind: (station: Station) => void;
   onShowOnMap: (id: string) => void;
   onPrize: () => void;
 }) {
@@ -88,7 +91,7 @@ export function DexView({
                 </button>
                 {isOpen && (
                   <div className="qlist__more">
-                    <Details station={s} foundAt={found[s.id]} onShowOnMap={onShowOnMap} />
+                    <Details station={s} foundAt={found[s.id]} onFind={onFind} onShowOnMap={onShowOnMap} />
                   </div>
                 )}
               </li>
@@ -129,7 +132,7 @@ export function DexView({
                 <p className="dex__where">
                   {found[sel.id] ? `${zoneName(sel.zone)} · ${sel.spot}` : `Somewhere in the ${zoneName(sel.zone)}`}
                 </p>
-                <Details station={sel} foundAt={found[sel.id]} onShowOnMap={onShowOnMap} />
+                <Details station={sel} foundAt={found[sel.id]} onFind={onFind} onShowOnMap={onShowOnMap} />
               </div>
             </div>
           )}
@@ -145,14 +148,16 @@ export function DexView({
   );
 }
 
-/** Found: the description and when. Not found: the clue and a link to its spot on the map. */
+/** Found: the description and when. Not found: the clue, a way to go find it, and its spot on the map. */
 function Details({
   station,
   foundAt,
+  onFind,
   onShowOnMap,
 }: {
   station: Station;
   foundAt?: number;
+  onFind: (station: Station) => void;
   onShowOnMap: (id: string) => void;
 }) {
   if (foundAt) {
@@ -166,10 +171,16 @@ function Details({
   return (
     <>
       <p>“{station.clue}”</p>
-      <button type="button" className="btn btn--ghost btn--sm" onClick={() => onShowOnMap(station.id)}>
-        <MapIcon />
-        Show on map
-      </button>
+      <div className="dex__actions">
+        <button type="button" className="btn btn--primary btn--sm" onClick={() => onFind(station)}>
+          <ScanIcon />
+          Find it
+        </button>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={() => onShowOnMap(station.id)}>
+          <MapIcon />
+          Show on map
+        </button>
+      </div>
     </>
   );
 }

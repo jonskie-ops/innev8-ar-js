@@ -44,7 +44,8 @@ export function Game({ phase }: { phase: Phase }) {
   const p = useProgress();
   const [tab, setTab] = useState<Tab>("map");
   const [focus, setFocus] = useState<string | null>(null);
-  const [scan, setScan] = useState<{ preset?: Station } | null>(null);
+  // The scanner, optionally looking for one chosen code
+  const [scan, setScan] = useState<{ target?: Station } | null>(null);
   const [caught, setCaught] = useState<Station | null>(null);
   const [overlay, setOverlay] = useState<"countdown" | "prize" | null>(null);
   const [toast, showToast] = useToast();
@@ -68,15 +69,15 @@ export function Game({ phase }: { phase: Phase }) {
   useEffect(() => {
     if (!pending || !signedUp) return;
     if (p.found[pending.id]) showToast(`You already found QR code #${pending.num}.`);
-    else setScan({ preset: pending }); // eslint-disable-line react-hooks/set-state-in-effect -- opens the deep-linked encounter once
+    else setScan({ target: pending }); // eslint-disable-line react-hooks/set-state-in-effect -- opens the linked code's hunt once
     setPending(null);
   }, [pending, signedUp, p.found, showToast]);
 
   const closeScan = useCallback(() => setScan(null), []);
   // Opened by a tap, so iPhone can ask for the motion sensors the AR view turns with.
-  const openScan = () => {
+  const openScan = (target?: Station) => {
     askMotion();
-    setScan({});
+    setScan({ target });
   };
   const onCatch = useCallback((station: Station) => {
     progress.collect(station.id);
@@ -125,6 +126,7 @@ export function Game({ phase }: { phase: Phase }) {
         {tab === "dex" && (
           <DexView
             found={p.found}
+            onFind={openScan}
             onShowOnMap={(id) => {
               setFocus(id);
               setTab("map");
@@ -160,7 +162,7 @@ export function Game({ phase }: { phase: Phase }) {
         {TABS.slice(0, 2).map((t) => (
           <TabButton key={t.id} tab={t} active={tab === t.id} onSelect={setTab} />
         ))}
-        <button type="button" className="tabbar__scan" onClick={openScan}>
+        <button type="button" className="tabbar__scan" onClick={() => openScan()}>
           <span className="tabbar__scan-ring" aria-hidden="true">
             <ScanIcon />
           </span>
@@ -171,7 +173,7 @@ export function Game({ phase }: { phase: Phase }) {
         ))}
       </nav>
 
-      {scan && <ScanView preset={scan.preset} found={p.found} onCatch={onCatch} onClose={closeScan} />}
+      {scan && <ScanView target={scan.target} found={p.found} onCatch={onCatch} onClose={closeScan} />}
 
       {caught && (
         <CatchCard

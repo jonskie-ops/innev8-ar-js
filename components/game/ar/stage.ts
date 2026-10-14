@@ -8,9 +8,12 @@ export type ArPhase = "searching" | "found" | "ready" | "collecting" | "done";
 
 /** Where the hidden codes are, relative to where the phone points. */
 export type Guide = {
-  /** Horizontal angle to each code still hidden, in radians: 0 straight ahead, positive to the right. */
-  blips: number[];
-  /** Which way to move toward the closest one; null when it's in view. */
+  /**
+   * Each code still hidden: horizontal angle in radians (0 straight ahead, positive to the right),
+   * and whether it's the one the player chose to look for.
+   */
+  blips: { angle: number; target: boolean }[];
+  /** Which way to move toward the chosen code (or the closest one); null when it's in view. */
   turn: "left" | "right" | "up" | "down" | null;
   /** True when the phone's motion sensors steer the view; false means drag to look. */
   sensors: boolean;
@@ -54,13 +57,14 @@ type Hidden = { station: Station; qr: Qr3d; spot: THREE.Group; sway: THREE.Group
  * motion sensors they stay put in the room as the phone turns (like Pokémon GO's AR), otherwise drag
  * to look. Each is invisible until the camera is held on its spot, then it assembles into a 3D QR code,
  * and a tap collects it. Drawn over the camera feed, or in a virtual room when there's no camera.
- * `preset` (a deep link) is placed straight ahead.
+ * There's no set order: whichever code is revealed and tapped first is the one collected. `target` is
+ * the code the player chose to look for, if any; the guide points to it, but it's hidden like the rest.
  */
 export async function createArStage(
   host: HTMLElement,
   video: HTMLVideoElement,
   hide: Station[],
-  preset: Station | undefined,
+  target: Station | undefined,
   ev: ArEvents,
 ): Promise<{ dispose: () => void }> {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -245,13 +249,12 @@ export async function createArStage(
       c.qr.dispose();
     }
     const n = hide.length;
-    // A deep-linked code goes straight ahead; otherwise the nearest is at least ~45° from where the
-    // phone points, and the rest are spread round the room.
-    const base = preset ? heading() : heading() + deg(45 + Math.random() * 30) * (Math.random() < 0.5 ? 1 : -1);
+    // Spread round the room in a random order, the nearest at least ~45° from where the phone points.
+    const base = heading() + deg(45 + Math.random() * 30) * (Math.random() < 0.5 ? 1 : -1);
+    const slots = hide.map((_, i) => i).sort(() => Math.random() - 0.5);
     codes = hide.map((station, i) => {
-      const ahead = station === preset;
-      const yaw = base + (i * Math.PI * 2) / n + (ahead ? 0 : deg((Math.random() - 0.5) * 40));
-      const pitch = ahead ? deg(-3) : deg(-14 + Math.random() * 22);
+      const yaw = base + (slots[i] * Math.PI * 2) / n + deg((Math.random() - 0.5) * 40);
+      const pitch = deg(-14 + Math.random() * 22);
       const spot = new THREE.Group();
       spot.position.set(
         -Math.sin(yaw) * Math.cos(pitch) * DIST,
@@ -374,14 +377,18 @@ export async function createArStage(
   let lastTime = -1;
 
   const guide = () => {
-    const blips: number[] = [];
-    let best: { a: number; y: number; ahead: boolean } | null = null;
+    const blips: Guide["blips"] = [];
+    let best: { a: number; y: number; ahead: boolean; target: boolean } | null = null;
     for (const c of codes) {
       if (c.got) continue;
       v.copy(c.spot.position).applyMatrix4(cam.matrixWorldInverse);
       const a = Math.atan2(v.x, -v.z);
-      blips.push(a);
-      if (!best || Math.abs(a) < Math.abs(best.a)) best = { a, y: ndc.copy(c.spot.position).project(cam).y, ahead: v.z < 0 };
+      const isTarget = c.station === target;
+      blips.push({ angle: a, target: isTarget });
+      // Point to the chosen code; without one, to whichever is closest.
+      if (!best || (isTarget && !best.target) || (isTarget === best.target && Math.abs(a) < Math.abs(best.a))) {
+        best = { a, y: ndc.copy(c.spot.position).project(cam).y, ahead: v.z < 0, target: isTarget };
+      }
     }
     let turn: Guide["turn"] = null;
     if (best) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { pad2 } from "@/lib/dom";
-import { RARITY_LABEL, STATIONS, zoneName } from "@/lib/hunt";
+import { RARITY_LABEL, STATIONS, zoneName, type Station } from "@/lib/hunt";
 import { CheckIcon, CloseIcon, ScanIcon } from "./icons";
 import { QrTile } from "./QrTile";
 import { VenueMap } from "./VenueMap";
@@ -16,7 +16,8 @@ export function MapView({
   found: Record<string, number>;
   focus: string | null;
   onFocus: (id: string | null) => void;
-  onScan: () => void;
+  /** Open the scanner looking for this code. */
+  onScan: (station: Station) => void;
 }) {
   const sel = STATIONS.find((s) => s.id === focus);
 
@@ -48,9 +49,9 @@ export function MapView({
             ) : (
               <>
                 <p className="station__clue">“{sel.clue}”</p>
-                <button type="button" className="btn btn--primary btn--sm" onClick={onScan}>
+                <button type="button" className="btn btn--primary btn--sm" onClick={() => onScan(sel)}>
                   <ScanIcon />
-                  Open scanner
+                  Find it
                 </button>
               </>
             )}
