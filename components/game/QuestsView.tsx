@@ -1,8 +1,7 @@
 "use client";
 
 import { STATIONS, TOTAL, ZONES } from "@/lib/hunt";
-import { TEST_MODE } from "@/lib/site";
-import { CheckIcon } from "./icons";
+import { I8Mark } from "./I8Mark";
 
 type Quest = { id: string; title: string; desc: string; have: number; need: number };
 
@@ -33,15 +32,7 @@ function questsFor(found: Record<string, number>): Quest[] {
   ];
 }
 
-export function QuestsView({
-  found,
-  points,
-  province,
-}: {
-  found: Record<string, number>;
-  points: number;
-  province: string;
-}) {
+export function QuestsView({ found }: { found: Record<string, number> }) {
   const quests = questsFor(found);
   const done = quests.filter((q) => q.have >= q.need).length;
 
@@ -60,7 +51,7 @@ export function QuestsView({
           return (
             <li key={q.id} className={complete ? "card quest is-done" : "card quest"}>
               <span className="quest__badge" aria-hidden="true">
-                {complete ? <CheckIcon /> : null}
+                <I8Mark />
               </span>
               <div className="quest__body">
                 <h2>{q.title}</h2>
@@ -76,17 +67,6 @@ export function QuestsView({
           );
         })}
       </ul>
-
-      <section className="card board">
-        <p className="label">Leaderboard</p>
-        <h2>Live rankings arrive on event day</h2>
-        <p>See how you stack up against hunters across Eastern Visayas.</p>
-        <div className="board__row">
-          <span>You · {province}</span>
-          <b>{points} pts</b>
-        </div>
-        {TEST_MODE && <p className="test-note">Test mode: the leaderboard needs a server, which isn&apos;t built yet.</p>}
-      </section>
     </div>
   );
 }

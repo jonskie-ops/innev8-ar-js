@@ -1,71 +1,131 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- decorative cover photo, already sized for phones */
 
-import { useState } from "react";
-import { levelOf, TOTAL } from "@/lib/hunt";
+import { useEffect, useRef, useState } from "react";
+import { levelOf, STATIONS, TOTAL } from "@/lib/hunt";
 import { PROVINCES, TEST_MODE } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
-import { ClockIcon } from "./icons";
+import { I8Mark } from "./I8Mark";
+import { ArrowRightIcon, CalendarIcon, ChevronDownIcon, ClockIcon, DexIcon, InfoIcon, PinIcon } from "./icons";
 import { MiniClock } from "./MiniClock";
+import { QrTile } from "./QrTile";
 
+const timeFmt = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+/**
+ * My Profile: a summit cover (bridge photo, event title, INNEV8 mark), then a sheet with the player's
+ * avatar, name, province and stats, an About section that turns into the edit form, a strip of their
+ * QR codes, and the side countdown before the event.
+ */
 export function MeView({
   name,
   province,
-  count,
+  found,
   points,
   phase,
   onCountdown,
-  onDeletePlayer,
+  onOpenCodes,
 }: {
   name: string;
   province: string;
-  count: number;
+  found: Record<string, number>;
   points: number;
   phase: Phase;
   onCountdown: () => void;
-  onDeletePlayer: () => void;
+  onOpenCodes: () => void;
 }) {
-  const [draft, setDraft] = useState(name);
-  const changed = draft.trim() !== "" && draft.trim() !== name;
+  const [aboutOpen, setAboutOpen] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(name);
+  const [draftProvince, setDraftProvince] = useState(province);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) nameRef.current?.focus();
+  }, [editing]);
+
+  const times = Object.values(found).filter(Boolean);
+  const count = STATIONS.filter((s) => found[s.id]).length;
+  // Found codes first (oldest first), then the ones still out there.
+  const strip = [...STATIONS]
+    .sort((a, b) => (found[a.id] || Infinity) - (found[b.id] || Infinity) || a.num - b.num)
+    .slice(0, 4);
+
+  const startEdit = () => {
+    if (!editing) {
+      setDraftName(name);
+      setDraftProvince(province);
+    }
+    setAboutOpen(true);
+    setEditing(true);
+  };
+  const canSave = draftName.trim() !== "";
 
   return (
     <div className="me">
-      <div className="view-head">
-        <h1>Hunter</h1>
-      </div>
-
-      <section className="card profile">
-        <span className="avatar avatar--lg" aria-hidden="true">
-          {(name || "?").charAt(0).toUpperCase()}
-        </span>
-        <form
-          className="profile__form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (changed) progress.rename(draft);
-          }}
-        >
-          <label className="label" htmlFor="me-name">
-            Hunter name
-          </label>
-          <div className="field">
-            <input id="me-name" value={draft} maxLength={20} onChange={(e) => setDraft(e.target.value)} />
-            <button type="submit" className="btn btn--ghost btn--sm" disabled={!changed}>
-              Save
-            </button>
+      <section className="pcover" aria-label="Regional ICT Summit 2026">
+        <img
+          className="pcover__photo"
+          src="/assets/img/bridge-1200.webp"
+          alt=""
+          width={1200}
+          height={810}
+          decoding="async"
+        />
+        <div className="pcover__inner">
+          <p className="pcover__title">
+            <span className="pcover__l1">Regional</span>
+            <span className="pcover__l2">ICT Summit</span>
+            <span className="pcover__l3 grad">2026</span>
+          </p>
+          <div className="pcover__mark" aria-hidden="true">
+            <I8Mark />
+            <span className="pcover__pedestal"></span>
           </div>
-          <label className="label profile__province-label" htmlFor="me-province">
-            Province
-          </label>
-          <select id="me-province" value={province} onChange={(e) => progress.setProvince(e.target.value)}>
-            {PROVINCES.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </form>
-        <dl className="stats">
+          <span className="pcover__rule" aria-hidden="true"></span>
+          <p className="pcover__tag">
+            Bridging Industries. Building Partnerships.
+            <br />
+            <em>Creating a Digital Future.</em>
+          </p>
+          <ul className="pcover__meta" role="list">
+            <li>
+              <CalendarIcon />
+              <span>
+                <strong>November 20–21, 2026</strong>
+                <small>Friday &amp; Saturday</small>
+              </span>
+            </li>
+            <li>
+              <PinIcon />
+              <span>
+                <strong>Leyte Academic Center</strong>
+                <small>Brgy. Pawing, Palo, Leyte</small>
+              </span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <div className="psheet">
+        <div className="psheet__top">
+          <span className="avatar psheet__avatar" aria-hidden="true">
+            {(name || "?").charAt(0).toUpperCase()}
+          </span>
+          <p className="psheet__pill">Collect all {TOTAL} INNEV8 QR codes to win a prize.</p>
+          <button type="button" className="btn btn--ghost btn--sm psheet__edit" onClick={startEdit}>
+            Edit Profile
+          </button>
+        </div>
+
+        <h1 className="psheet__name">{name}</h1>
+        <p className="psheet__where">
+          <PinIcon />
+          {province}
+        </p>
+
+        <dl className="pstats">
           <div>
             <dt>QR codes</dt>
             <dd>
@@ -81,74 +141,135 @@ export function MeView({
             <dd>{levelOf(points)}</dd>
           </div>
         </dl>
-      </section>
 
-      {phase === "before" && (
-        <section className="card side-countdown">
-          <p className="label">
-            <ClockIcon /> The road to November 20
-          </p>
-          <p className="side-countdown__clock">
-            <MiniClock seconds />
-          </p>
-          {TEST_MODE && (
-            <p className="test-note">
-              Test mode: the hunt is open early. In production, &ldquo;The countdown is on.&rdquo; fills the screen
-              until the summit starts.
-            </p>
+        <section className="psec">
+          <button
+            type="button"
+            className="psec__head"
+            aria-expanded={aboutOpen}
+            aria-controls="me-about"
+            onClick={() => setAboutOpen(!aboutOpen)}
+          >
+            <span className="psec__icon">
+              <InfoIcon />
+            </span>
+            <span className="psec__title">About</span>
+            <span className="psec__chev">
+              <ChevronDownIcon />
+            </span>
+          </button>
+          {aboutOpen && (
+            <div id="me-about" className="psec__body">
+              {editing ? (
+                <form
+                  className="pedit"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!canSave) return;
+                    if (draftName.trim() !== name) progress.rename(draftName);
+                    if (draftProvince !== province) progress.setProvince(draftProvince);
+                    setEditing(false);
+                  }}
+                >
+                  <label className="label" htmlFor="me-name">
+                    Name
+                  </label>
+                  <input
+                    id="me-name"
+                    ref={nameRef}
+                    value={draftName}
+                    maxLength={20}
+                    autoComplete="nickname"
+                    onChange={(e) => setDraftName(e.target.value)}
+                  />
+                  <label className="label pedit__gap" htmlFor="me-province">
+                    Province
+                  </label>
+                  <select id="me-province" value={draftProvince} onChange={(e) => setDraftProvince(e.target.value)}>
+                    {PROVINCES.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pedit__actions">
+                    <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditing(false)}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="btn btn--primary btn--sm" disabled={!canSave}>
+                      Save
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <dl className="pfacts">
+                  <div>
+                    <dt>Name</dt>
+                    <dd>{name}</dd>
+                  </div>
+                  <div>
+                    <dt>Province</dt>
+                    <dd>{province}</dd>
+                  </div>
+                  <div>
+                    <dt>First QR code</dt>
+                    <dd>{times.length ? timeFmt.format(Math.min(...times)) : "Not yet"}</dd>
+                  </div>
+                  <div>
+                    <dt>Latest QR code</dt>
+                    <dd>{times.length ? timeFmt.format(Math.max(...times)) : "Not yet"}</dd>
+                  </div>
+                </dl>
+              )}
+            </div>
           )}
-          <button type="button" className="btn btn--ghost btn--sm" onClick={onCountdown}>
-            Open countdown screen
-          </button>
         </section>
-      )}
 
-      <section className="card how">
-        <p className="label">How to play</p>
-        <ol>
-          <li>
-            <b>Explore.</b> {TOTAL} INNEV8 QR codes are hidden across the venue. The map shows roughly where.
-          </li>
-          <li>
-            <b>Scan.</b> Found one? Tap Scan and point your camera at the QR code.
-          </li>
-          <li>
-            <b>Collect.</b> Tap the code that pops up to add it to your collection. Collect all {TOTAL} to win a prize.
-          </li>
-        </ol>
-      </section>
-
-      {TEST_MODE && (
-        <section className="card tools">
-          <p className="label">Test tools</p>
-          <a className="btn btn--ghost btn--sm" href="/markers" target="_blank" rel="noopener">
-            Printable test QR codes
-          </a>
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm"
-            onClick={() => {
-              if (confirm("Clear all collected QR codes on this device? Your name stays.")) progress.reset();
-            }}
-          >
-            Reset progress
-          </button>
-          <button
-            type="button"
-            className="btn btn--ghost btn--sm btn--danger"
-            onClick={() => {
-              if (confirm("Delete this player (name and all progress) on this device? You'll go back to the name screen.")) {
-                onDeletePlayer();
-              }
-            }}
-          >
-            Delete player
-          </button>
-          <p className="test-note">
-            Reset progress keeps your name. Delete player starts over from the &ldquo;Your hunter name&rdquo; screen.
-          </p>
+        <section className="psec">
+          <div className="psec__head">
+            <span className="psec__icon">
+              <DexIcon />
+            </span>
+            <span className="psec__title">QR Codes</span>
+            <span className="psec__meta">
+              {count}/{TOTAL}
+            </span>
+          </div>
+          <div className="psec__strip">
+            {strip.map((s, i) => (
+              <QrTile key={s.id} station={s} state={found[s.id] ? "found" : "locked"} size="sm" i={i} />
+            ))}
+            <button type="button" className="psec__more" aria-label="Open your QR collection" onClick={onOpenCodes}>
+              <ArrowRightIcon />
+            </button>
+          </div>
         </section>
-      )}
+
+        {phase === "before" && (
+          <section className="psec">
+            <div className="psec__head">
+              <span className="psec__icon psec__icon--gold">
+                <ClockIcon />
+              </span>
+              <span className="psec__title">The road to November 20</span>
+            </div>
+            <div className="psec__body psec__countdown">
+              <p className="psec__clock">
+                <MiniClock seconds />
+              </p>
+              {TEST_MODE && (
+                <p className="test-note">
+                  Test mode: the hunt is open early. In production, &ldquo;The countdown is on.&rdquo; fills the
+                  screen until the summit starts.
+                </p>
+              )}
+              <button type="button" className="btn btn--ghost btn--sm" onClick={onCountdown}>
+                Open countdown screen
+              </button>
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }

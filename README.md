@@ -22,9 +22,7 @@ To open the dev server from another device, its origin must be in `allowedDevOri
 | --- | --- | --- |
 | Before Nov 20, 8:00 AM | Hunt is playable. "The countdown is on." sits on the side: HUD timer chip and the Me tab | "The countdown is on." fills the screen; the hunt is locked |
 | From Nov 20, 8:00 AM | Hunt | Hunt (unlocks automatically) |
-| Scanner | Camera + "simulate a find" buttons | Camera only |
-| `/markers` (printable hunt QR codes) | Available | 404 |
-| Reset progress | Me tab | Not shown |
+| `/markers` (printable hunt QR codes) | Available (open the address directly) | 404 |
 
 ## Deploy
 
@@ -41,15 +39,16 @@ site is playable now; set it to `false` for the real launch.
 4. Progress is saved on the device (localStorage).
 
 The camera only works on a secure page: `https://…` or `http://localhost`. Over plain
-`http://192.168.x.x` the scanner shows a notice (test buttons and deep links still work).
+`http://192.168.x.x` the scanner opens without a camera feed; deep links from the phone's own camera
+app still work.
 
 ## Before the event
 
 - **Venue map:** the building outlines are real (Leyte Convention Complex, Annex A, the east
   driveway and parking, from OpenStreetMap, in `lib/venue.ts`). The rooms drawn inside them, the QR
   spots and the clues in `lib/hunt.ts` are placeholders until the event floor plan is final.
-- **Leaderboard and prize checks need a server.** Progress and the prize claim code live only on the
-  player's phone, so they can't be verified or ranked yet.
+- **Prize checks need a server.** Progress and the prize claim code live only on the player's phone,
+  so they can't be verified yet.
 - **QR code values ship in the app's JavaScript**, so a determined player could find them. Server-side
   validation fixes this too.
 

@@ -2,9 +2,8 @@
 
 import jsQR from "jsqr";
 import { useEffect, useRef, useState } from "react";
-import { clamp, pad2 } from "@/lib/dom";
-import { STATIONS, TOTAL, stationFromPayload, type Station } from "@/lib/hunt";
-import { TEST_MODE } from "@/lib/site";
+import { clamp } from "@/lib/dom";
+import { TOTAL, stationFromPayload, type Station } from "@/lib/hunt";
 import { CameraOffIcon, CloseIcon } from "./icons";
 import { QrTile } from "./QrTile";
 
@@ -16,16 +15,15 @@ const SCAN_MS = 110; // decode at most ~9 times a second
 const TOAST_MS = 3000; // don't repeat the same scan message more often than this
 const CATCH_MS = 900; // length of the collect animation
 
-const CAM_MESSAGE: Record<Exclude<Cam, "on">, string> = {
+const CAM_MESSAGE: Record<Exclude<Cam, "on" | "insecure">, string> = {
   starting: "Starting camera…",
   denied: "Camera access is blocked. Allow it in your browser's site settings, then reopen the scanner.",
   unavailable: "No camera is available on this device.",
-  insecure: "The camera only works on a secure (https://) page.",
 };
 
-/** A code floating mid-screen, for deep links and simulated finds. */
+/** A code floating mid-screen (where the scan frame sits), for deep links. */
 function centered(station: Station): Target {
-  return { station, x: innerWidth / 2, y: innerHeight * 0.44, size: Math.min(innerWidth * 0.42, 180) };
+  return { station, x: innerWidth / 2, y: innerHeight / 2, size: Math.min(innerWidth * 0.42, 180) };
 }
 
 /**
@@ -164,22 +162,17 @@ export function ScanView({
   }
 
   const count = Object.keys(found).length;
-  const unfound = STATIONS.filter((s) => !found[s.id]);
 
   return (
     <div className={cam === "on" ? "scan is-live" : "scan"} role="dialog" aria-modal="true" aria-label="AR scanner">
       <video ref={videoRef} className="scan__video" playsInline muted autoPlay />
       <div className="scan__shade" aria-hidden="true"></div>
 
-      {cam !== "on" && (
+      {/* No message on a non-https page: that only happens on a local test address. */}
+      {cam !== "on" && cam !== "insecure" && (
         <div className="scan__nocam">
           {cam !== "starting" && <CameraOffIcon />}
           <p>{CAM_MESSAGE[cam]}</p>
-          {cam === "insecure" && TEST_MODE && (
-            <p className="scan__dev">
-              Run <code>npm run dev:https</code>, or collect with the test buttons below.
-            </p>
-          )}
         </div>
       )}
 
@@ -233,18 +226,6 @@ export function ScanView({
             </>
           )}
         </p>
-        {TEST_MODE && !target && unfound.length > 0 && (
-          <div className="scan__sim">
-            <p className="scan__sim-label">Test mode · simulate a find</p>
-            <div className="scan__sim-list">
-              {unfound.map((s) => (
-                <button key={s.id} type="button" className="chip chip--btn" onClick={() => setTarget(centered(s))}>
-                  #{pad2(s.num)} {s.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

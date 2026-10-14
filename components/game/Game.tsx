@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { levelOf, scoreOf, stationFromPayload, TOTAL, type Station } from "@/lib/hunt";
+import { scoreOf, stationFromPayload, TOTAL, type Station } from "@/lib/hunt";
 import { TEST_MODE } from "@/lib/site";
 import { progress, useProgress } from "@/lib/store";
 import { CountdownSection } from "../CountdownSection";
@@ -89,9 +89,7 @@ export function Game({ phase }: { phase: Phase }) {
           </span>
           <span className="hud__who">
             <strong>{p.name}</strong>
-            <small>
-              LV {levelOf(points)} · {points} pts
-            </small>
+            <small>{points} pts</small>
           </span>
         </div>
         <div className="hud__chips">
@@ -128,20 +126,16 @@ export function Game({ phase }: { phase: Phase }) {
             onPrize={() => setOverlay("prize")}
           />
         )}
-        {tab === "quests" && <QuestsView found={p.found} points={points} province={p.province} />}
+        {tab === "quests" && <QuestsView found={p.found} />}
         {tab === "me" && (
           <MeView
             name={p.name}
             province={p.province}
-            count={count}
+            found={p.found}
             points={points}
             phase={phase}
             onCountdown={() => setOverlay("countdown")}
-            onDeletePlayer={() => {
-              progress.clear();
-              setTab("map");
-              setFocus(null);
-            }}
+            onOpenCodes={() => setTab("dex")}
           />
         )}
       </div>
