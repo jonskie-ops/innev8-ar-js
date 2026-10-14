@@ -4,11 +4,11 @@ import { Showcase } from "@/components/showcase/Showcase";
 import { TEST_MODE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "3D collect showcase · INNEV8 QR Code Hunt",
+  title: "AR test · INNEV8 QR Code Hunt",
   robots: { index: false, follow: false },
 };
 
-/** Preview of the 3D collect moment. Test mode only, like the printable QR codes page. */
+/** AR test: virtual 3D QR codes hidden around you. Test mode only. */
 export default function ShowcasePage() {
   if (!TEST_MODE) notFound();
   return <Showcase />;

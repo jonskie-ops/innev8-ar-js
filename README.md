@@ -71,5 +71,5 @@ app still work.
 | `lib/store.ts` | Saved progress |
 | `lib/site.ts` | Event dates, `TEST_MODE` |
 | `app/markers/page.tsx` | Printable hunt QR codes (test mode only) |
-| `app/showcase/page.tsx`, `components/showcase/` | 3D collect showcase (test mode only): the INNEV8 emblem rising out of a code, in a demo scene or on a real code via the camera ([three.js](https://threejs.org)) |
+| `app/showcase/page.tsx`, `components/showcase/` | AR test (test mode only): virtual 3D QR codes hidden at fixed spots around you, revealed when the camera points at them ([three.js](https://threejs.org)) |
 | `app/globals.css`, `app/game.css` | Styles |
