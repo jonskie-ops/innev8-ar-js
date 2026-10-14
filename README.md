@@ -1,8 +1,9 @@
 # INNEV8-AR-JS
 
 **INNEV8 QR Code Hunt** for the Regional ICT Summit 2026: a Pokémon GO–style game. **Players hunt for
-INNEV8 QR codes hidden around the venue.** Scanning one in the app pops a glowing holographic copy of
-the code up over it (the AR part); tapping it collects the code. Collect all 10 to win a prize.
+10 virtual INNEV8 QR codes hidden around the venue.** Nothing is printed: each code is invisible until
+the phone's camera points at its spot, then it assembles into an animated 3D QR code (the AR part);
+tapping it collects it. Collect all 10 to win a prize.
 
 ## Run
 
@@ -22,7 +23,7 @@ To open the dev server from another device, its origin must be in `allowedDevOri
 | --- | --- | --- |
 | Before Nov 20, 8:00 AM | Hunt is playable. "The countdown is on." sits on the side: HUD timer chip and the Me tab | "The countdown is on." fills the screen; the hunt is locked |
 | From Nov 20, 8:00 AM | Hunt | Hunt (unlocks automatically) |
-| `/markers` (printable hunt QR codes) | Available (open the address directly) | 404 |
+| Scanner | Radar and arrows point to the hidden codes | No radar: find them by their clues |
 
 ## Deploy
 
@@ -32,15 +33,22 @@ site is playable now; set it to `false` for the real launch.
 
 ## How a catch works
 
-1. Each of the 10 stations has its own QR code, holding `<site>/?s=<code>` (codes live in `lib/hunt.ts`).
-2. The in-game scanner (`components/game/ScanView.tsx`) reads the rear camera with
-   [jsQR](https://github.com/cozmo/jsQR), and pins a holographic copy of the code on top of it in the camera view.
-3. Scanning the same QR with the phone's normal camera app opens the site straight into that encounter.
-4. Progress is saved on the device (localStorage).
+1. Tapping **Scan** opens the AR view (`components/game/ScanView.tsx`, 3D layer in `components/game/ar/`,
+   built with [three.js](https://threejs.org)) and hides up to 3 of the player's unfound codes around them.
+2. The phone's motion sensors keep the codes fixed in the room as the phone turns (like Pokémon GO's
+   AR); without sensors, drag to look. Turning works; walking toward a code doesn't (a phone browser
+   can't track position without a reference in the camera image).
+3. Each code is invisible until it's held in the scan frame for half a second, then it assembles from
+   glowing blocks into a 3D QR code (`ar/qr3d.ts`, its pattern generated from the code's value).
+   Tapping it collects it and the catch card opens. Progress is saved on the device (localStorage).
+
+**Placement is a test stand-in:** codes go at random spots around the player each time the scanner
+opens. Pinning each code to its real spot at the venue (e.g. image anchors on existing banners and
+signs, or GPS for outdoor spots) is still to be decided.
 
 The camera only works on a secure page: `https://…` or `http://localhost`. Over plain
-`http://192.168.x.x` the scanner opens without a camera feed; deep links from the phone's own camera
-app still work.
+`http://192.168.x.x` the scanner shows a virtual room instead (drag to look). iPhone asks for motion
+access when Scan is tapped.
 
 ## Before the event
 
@@ -61,7 +69,7 @@ app still work.
 | `components/CountdownSection.tsx`, `Countdown.tsx` | "The countdown is on." section and clock |
 | `components/game/Game.tsx` | Game shell: HUD, tabs, overlays |
 | `components/game/MapView.tsx` | Venue map (home) |
-| `components/game/ScanView.tsx` | AR camera scanner |
+| `components/game/ScanView.tsx`, `components/game/ar/` | AR scanner: hidden 3D QR codes over the camera feed |
 | `components/game/DexView.tsx`, `QuestsView.tsx`, `MeView.tsx` | Codes (collection), Quests and Me tabs |
 | `components/game/CatchCard.tsx`, `PrizeCard.tsx`, `Onboarding.tsx` | Catch result, prize, first run |
 | `components/game/QrTile.tsx`, `QrGlyph.tsx` | Floating QR tiles; each code's decorative pattern |
@@ -70,6 +78,4 @@ app still work.
 | `components/game/VenueMap.tsx` | 3D holographic venue map |
 | `lib/store.ts` | Saved progress |
 | `lib/site.ts` | Event dates, `TEST_MODE` |
-| `app/markers/page.tsx` | Printable hunt QR codes (test mode only) |
-| `app/showcase/page.tsx`, `components/showcase/` | AR test (test mode only): virtual 3D QR codes hidden at fixed spots around you, revealed when the camera points at them ([three.js](https://threejs.org)) |
 | `app/globals.css`, `app/game.css` | Styles |

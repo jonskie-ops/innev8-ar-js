@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { STATIONS, type Station } from "@/lib/hunt";
+import type { Station } from "@/lib/hunt";
 import { buildQr3d, RARITY_HEX, type Qr3d } from "./qr3d";
 
 export type CamState = "starting" | "on" | "denied" | "unavailable" | "insecure";
-export type Phase = "intro" | "searching" | "found" | "ready" | "collecting" | "collected" | "done";
+export type ArPhase = "searching" | "found" | "ready" | "collecting" | "done";
 
 /** Where the hidden codes are, relative to where the phone points. */
 export type Guide = {
@@ -16,24 +16,15 @@ export type Guide = {
   sensors: boolean;
 };
 
-export type StageEvents = {
-  onPhase: (phase: Phase, station: Station | null, found: number, total: number) => void;
-  onCamera: (state: CamState | null) => void;
+export type ArEvents = {
+  onPhase: (phase: ArPhase, station: Station | null) => void;
+  onCamera: (state: CamState) => void;
   onGuide: (guide: Guide | null) => void;
+  /** Fired once the collect animation has played. */
+  onCollect: (station: Station) => void;
 };
 
-export type Stage = {
-  /** Call from a tap: asks for motion and camera access, then starts the hunt. */
-  start: () => void;
-  /** Hide a fresh set of codes around you. */
-  scatter: () => void;
-  /** After a collect: back to searching (or "done" when none are left). */
-  next: () => void;
-  dispose: () => void;
-};
-
-const COUNT = 3; // codes hidden per round
-const DIST = 3.2; // how far away they sit
+const DIST = 3.2; // how far away the codes sit
 const AIM_S = 0.45; // hold a code in the frame this long to reveal it
 const REVEAL_S = 1.6;
 const COLLECT_S = 1.25;
@@ -59,17 +50,24 @@ function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D)
 type Hidden = { station: Station; qr: Qr3d; spot: THREE.Group; sway: THREE.Group; shimmer: THREE.Points; got: boolean };
 
 /**
- * AR test for the hunt's virtual QR codes. A few 3D QR codes are hidden at fixed directions around
- * the player; with motion sensors they stay put in the room as the phone turns (like Pokémon GO's AR),
- * otherwise drag to look. Each is invisible until the camera is held on its spot, then it assembles,
- * and a tap collects it. Over the camera feed when there is one, in a virtual room when there isn't.
+ * The scanner's AR layer. The given codes are hidden at fixed directions around the player; with
+ * motion sensors they stay put in the room as the phone turns (like Pokémon GO's AR), otherwise drag
+ * to look. Each is invisible until the camera is held on its spot, then it assembles into a 3D QR code,
+ * and a tap collects it. Drawn over the camera feed, or in a virtual room when there's no camera.
+ * `preset` (a deep link) is placed straight ahead.
  */
-export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev: StageEvents): Promise<Stage> {
+export async function createArStage(
+  host: HTMLElement,
+  video: HTMLVideoElement,
+  hide: Station[],
+  preset: Station | undefined,
+  ev: ArEvents,
+): Promise<{ dispose: () => void }> {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.setClearColor(0x000000, 0);
-  renderer.domElement.className = "show__canvas";
+  renderer.domElement.className = "scan__canvas";
   host.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -106,10 +104,7 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
       g.fillRect(0, 0, 1024, 1024);
     }),
   );
-  const floor = new THREE.Mesh(
-    track(new THREE.PlaneGeometry(16, 16)),
-    track(new THREE.MeshBasicMaterial({ map: gridTex })),
-  );
+  const floor = new THREE.Mesh(track(new THREE.PlaneGeometry(16, 16)), track(new THREE.MeshBasicMaterial({ map: gridTex })));
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = FLOOR_Y;
   virtual.add(floor);
@@ -145,7 +140,6 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
 
   // ---- Effects around the code being revealed: halo, pulse rings, collect burst
   const fx = new THREE.Group();
-  scene.add(fx);
   const glowTex = track(
     canvasTexture(128, 128, (g) => {
       const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -178,8 +172,8 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
           opacity: 0,
           depthWrite: false,
           blending: THREE.AdditiveBlending,
-          fog: false,
           side: THREE.DoubleSide,
+          fog: false,
         }),
       ),
     );
@@ -230,14 +224,14 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
   // ---- The hidden codes
   let codes: Hidden[] = [];
   let active: Hidden | null = null;
-  let phase: Phase = "intro";
+  let phase: ArPhase = "searching";
   let t0 = 0;
   let now = 0;
-  const foundCount = () => codes.filter((c) => c.got).length;
-  const go = (p: Phase) => {
+  let aimFor = 0;
+  const go = (p: ArPhase) => {
     phase = p;
     t0 = now;
-    ev.onPhase(p, active?.station ?? null, foundCount(), codes.length);
+    ev.onPhase(p, active?.station ?? null);
   };
 
   const heading = () => {
@@ -245,17 +239,19 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
     return Math.atan2(-f.x, -f.z);
   };
 
-  const scatter = () => {
+  const place = () => {
     for (const c of codes) {
       c.spot.removeFromParent();
       c.qr.dispose();
     }
-    const picks = [...STATIONS].sort(() => Math.random() - 0.5).slice(0, COUNT);
-    // Spread them round the room, the nearest at least ~45° from where the phone points now.
-    const base = heading() + deg(45 + Math.random() * 30) * (Math.random() < 0.5 ? 1 : -1);
-    codes = picks.map((station, i) => {
-      const yaw = base + (i * Math.PI * 2) / COUNT + deg((Math.random() - 0.5) * 40);
-      const pitch = deg(-14 + Math.random() * 22);
+    const n = hide.length;
+    // A deep-linked code goes straight ahead; otherwise the nearest is at least ~45° from where the
+    // phone points, and the rest are spread round the room.
+    const base = preset ? heading() : heading() + deg(45 + Math.random() * 30) * (Math.random() < 0.5 ? 1 : -1);
+    codes = hide.map((station, i) => {
+      const ahead = station === preset;
+      const yaw = base + (i * Math.PI * 2) / n + (ahead ? 0 : deg((Math.random() - 0.5) * 40));
+      const pitch = ahead ? deg(-3) : deg(-14 + Math.random() * 22);
       const spot = new THREE.Group();
       spot.position.set(
         -Math.sin(yaw) * Math.cos(pitch) * DIST,
@@ -274,12 +270,10 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
       scene.add(spot);
       return { station, qr, spot, sway, shimmer, got: false };
     });
-    active = null;
     aimFor = 0;
-    if (phase !== "intro") go("searching");
   };
 
-  // ---- Looking around: motion sensors, or drag
+  // ---- Looking around: motion sensors (permission is asked by the Scan tap), or drag
   let sensors = false;
   const sensorQ = new THREE.Quaternion();
   const zee = new THREE.Vector3(0, 0, 1);
@@ -293,25 +287,16 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
     if (!sensors) {
       sensors = true;
       cam.quaternion.copy(sensorQ);
-      if (foundCount() === 0 && !active) scatter(); // re-place around the real heading
+      if (!active) place(); // re-place around the phone's real heading
     }
   };
-  let listening = false;
-  const listenSensors = () => {
-    if (listening) return;
-    listening = true;
-    const DOE = window.DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> } | undefined;
-    if (DOE?.requestPermission) {
-      DOE.requestPermission()
-        .then((r) => r === "granted" && addEventListener("deviceorientation", onOrient))
-        .catch(() => {});
-    } else addEventListener("deviceorientation", onOrient);
-  };
+  addEventListener("deviceorientation", onOrient);
   const look = { yaw: 0, pitch: -0.08 };
 
   // ---- Camera feed
   let stream: MediaStream | undefined;
   let camOn = false;
+  let disposed = false;
   const startCamera = async () => {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       ev.onCamera(window.isSecureContext ? "unavailable" : "insecure");
@@ -323,6 +308,7 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
+      if (disposed) return s.getTracks().forEach((t) => t.stop());
       stream = s;
       video.srcObject = s;
       await video.play().catch(() => {});
@@ -381,29 +367,27 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
   addEventListener("pointerup", onUp);
 
   // ---- Frame loop
-  let aimFor = 0;
   let guideAt = -1;
   let lastTurn: Guide["turn"] | undefined;
   const v = new THREE.Vector3();
+  const ndc = new THREE.Vector3();
   let lastTime = -1;
 
   const guide = () => {
     const blips: number[] = [];
-    let best: { a: number; ndc: THREE.Vector3; ahead: boolean } | null = null;
+    let best: { a: number; y: number; ahead: boolean } | null = null;
     for (const c of codes) {
       if (c.got) continue;
       v.copy(c.spot.position).applyMatrix4(cam.matrixWorldInverse);
       const a = Math.atan2(v.x, -v.z);
       blips.push(a);
-      if (!best || Math.abs(a) < Math.abs(best.a)) {
-        best = { a, ndc: c.spot.position.clone().project(cam), ahead: v.z < 0 };
-      }
+      if (!best || Math.abs(a) < Math.abs(best.a)) best = { a, y: ndc.copy(c.spot.position).project(cam).y, ahead: v.z < 0 };
     }
     let turn: Guide["turn"] = null;
     if (best) {
       if (!best.ahead || Math.abs(best.a) > deg(22)) turn = best.a > 0 ? "right" : "left";
-      else if (best.ndc.y < -0.45) turn = "down";
-      else if (best.ndc.y > 0.45) turn = "up";
+      else if (best.y < -0.45) turn = "down";
+      else if (best.y > 0.45) turn = "up";
     }
     if (turn !== lastTurn || now - guideAt > 0.1) {
       guideAt = now;
@@ -425,7 +409,8 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
       const W = host.clientWidth;
       const H = host.clientHeight;
       const cover = Math.max(W / video.videoWidth, H / video.videoHeight);
-      const fov = THREE.MathUtils.radToDeg(2 * Math.atan(H / 2 / (0.76 * Math.max(video.videoWidth, video.videoHeight) * cover)));
+      const f = 0.76 * Math.max(video.videoWidth, video.videoHeight) * cover;
+      const fov = THREE.MathUtils.radToDeg(2 * Math.atan(H / 2 / f));
       if (Math.abs(cam.fov - fov) > 0.05) {
         cam.fov = fov;
         cam.updateProjectionMatrix();
@@ -441,17 +426,15 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
       for (const c of codes) {
         if (c.got) continue;
         v.copy(c.spot.position).applyMatrix4(cam.matrixWorldInverse);
-        const ndc = c.spot.position.clone().project(cam);
-        const inView = v.z < 0 && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1;
+        ndc.copy(c.spot.position).project(cam);
         // A faint shimmer gives it away once it's on screen
-        c.shimmer.visible = inView;
+        c.shimmer.visible = v.z < 0 && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1;
         if (v.z < 0 && Math.abs(ndc.x) < 0.3 && Math.abs(ndc.y) < 0.22) aimed = c;
       }
       shimmerMat.opacity = 0.25 + 0.25 * Math.sin(now * 9);
       aimFor = aimed ? aimFor + dt : 0;
       if (aimed && aimFor > AIM_S) {
         active = aimed;
-        aimFor = 0;
         for (const c of codes) c.shimmer.visible = false;
         active.qr.root.visible = true;
         active.spot.add(fx);
@@ -460,7 +443,6 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
         glow.color.set(tint);
         rings.forEach((r) => (r.material as THREE.MeshBasicMaterial).color.set(tint));
         ev.onGuide(null);
-        lastTurn = undefined;
         go("found");
       }
     }
@@ -492,10 +474,10 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
           halo.scale.setScalar(4.2);
           haloMat.opacity = 1;
         }
-        if (pe > COLLECT_S) {
+        if (pe > COLLECT_S && !active.got) {
           active.got = true;
           qr.root.visible = false;
-          go("collected");
+          ev.onCollect(active.station);
         }
       }
       const live = phase === "found" || phase === "ready";
@@ -515,31 +497,20 @@ export async function createStage(host: HTMLElement, video: HTMLVideoElement, ev
       burstGeo.attributes.position.needsUpdate = true;
       haloMat.opacity = Math.max(0, haloMat.opacity - dt * 1.8);
       glow.intensity = Math.max(0, glow.intensity - dt * 10);
-      if (be > 1.2) burstAt = -1;
     }
 
     dust.rotation.y += dt * 0.015;
     renderer.render(scene, cam);
   };
-  renderer.setAnimationLoop(tick);
 
-  scatter();
+  place();
+  renderer.setAnimationLoop(tick);
+  void startCamera();
+  go(hide.length ? "searching" : "done");
 
   return {
-    start: () => {
-      if (phase !== "intro") return;
-      listenSensors(); // first, while still inside the tap (iPhone asks for permission here)
-      void startCamera();
-      go("searching");
-    },
-    scatter,
-    next: () => {
-      if (phase !== "collected") return;
-      active?.spot.remove(fx);
-      active = null;
-      go(codes.every((c) => c.got) ? "done" : "searching");
-    },
     dispose: () => {
+      disposed = true;
       renderer.setAnimationLoop(null);
       ro.disconnect();
       removeEventListener("deviceorientation", onOrient);

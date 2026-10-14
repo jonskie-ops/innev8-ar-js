@@ -1,147 +1,91 @@
 "use client";
 
-import jsQR from "jsqr";
-import { useEffect, useRef, useState } from "react";
-import { clamp } from "@/lib/dom";
-import { TOTAL, stationFromPayload, type Station } from "@/lib/hunt";
-import { CameraOffIcon, CloseIcon } from "./icons";
-import { QrTile } from "./QrTile";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { pad2 } from "@/lib/dom";
+import { STATIONS, TOTAL, type Station } from "@/lib/hunt";
+import { TEST_MODE } from "@/lib/site";
+import type { ArPhase, CamState, Guide } from "./ar/stage";
+import { ArrowRightIcon, CameraOffIcon, CloseIcon } from "./icons";
 
-type Cam = "starting" | "on" | "denied" | "unavailable" | "insecure";
-type Target = { station: Station; x: number; y: number; size: number };
+/** Codes hidden around the player each time the scanner opens. */
+const PER_SCAN = 3;
 
-const SAMPLE_W = 480; // frames are downscaled to this width before decoding
-const SCAN_MS = 110; // decode at most ~9 times a second
-const TOAST_MS = 3000; // don't repeat the same scan message more often than this
-const CATCH_MS = 900; // length of the collect animation
+const TURN_HINT: Record<NonNullable<Guide["turn"]>, string> = {
+  left: "A QR code is nearby: turn left",
+  right: "A QR code is nearby: turn right",
+  down: "Look a little lower",
+  up: "Look a little higher",
+};
 
-const CAM_MESSAGE: Record<Exclude<Cam, "on" | "insecure">, string> = {
-  starting: "Starting camera…",
+const CAM_MESSAGE: Partial<Record<CamState, string>> = {
   denied: "Camera access is blocked. Allow it in your browser's site settings, then reopen the scanner.",
   unavailable: "No camera is available on this device.",
 };
 
-/** A code floating mid-screen (where the scan frame sits), for deep links. */
-function centered(station: Station): Target {
-  return { station, x: innerWidth / 2, y: innerHeight / 2, size: Math.min(innerWidth * 0.42, 180) };
+/** A few of the codes still to find, the deep-linked one (if any) first. */
+function pickHidden(found: Record<string, number>, preset?: Station) {
+  const rest = STATIONS.filter((s) => !found[s.id] && s !== preset).sort(() => Math.random() - 0.5);
+  return (preset && !found[preset.id] ? [preset, ...rest] : rest).slice(0, PER_SCAN);
 }
 
 /**
- * Full-screen AR scanner. Reads the hunt's INNEV8 QR codes from the rear camera and pins a
- * glowing holographic copy of the code over it; tapping it collects the code.
+ * Full-screen AR scanner. The hunt's QR codes are virtual: a few of the ones still to find are hidden
+ * around the player, invisible until the camera is held on their spot. Then the code assembles in 3D
+ * and a tap collects it. (Test placement: random spots around you; the venue spots come later.)
  */
 export function ScanView({
   preset,
   found,
   onCatch,
   onClose,
-  onToast,
 }: {
-  /** Start with this code already in view (deep link). */
+  /** Start with this code straight ahead (deep link). */
   preset?: Station;
   found: Record<string, number>;
   onCatch: (station: Station) => void;
   onClose: () => void;
-  onToast: (msg: string) => void;
 }) {
+  const hostRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [cam, setCam] = useState<Cam>("starting");
-  const [target, setTarget] = useState<Target | null>(() => (preset ? centered(preset) : null));
-  const [catching, setCatching] = useState(false);
-  const catchTimer = useRef(0);
+  const [hidden] = useState(() => pickHidden(found, preset));
+  const [phase, setPhase] = useState<ArPhase | "loading">("loading");
+  const [station, setStation] = useState<Station | null>(null);
+  const [cam, setCam] = useState<CamState | null>(null);
+  const [guide, setGuide] = useState<Guide | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  // The decode loop is set up once; it reads the latest props through this ref.
-  const live = useRef({ found, onToast, catching });
+  // The latest callbacks, for the AR stage that's set up once
+  const live = useRef({ onCatch });
   useEffect(() => {
-    live.current = { found, onToast, catching };
+    live.current = { onCatch };
   });
 
+  // The 3D layer (and three.js) loads only when the scanner opens.
   useEffect(() => {
-    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-      setCam(window.isSecureContext ? "unavailable" : "insecure"); // eslint-disable-line react-hooks/set-state-in-effect -- browser capability check
-      return;
-    }
-
-    let stopped = false;
-    let stream: MediaStream | undefined;
-    let raf = 0;
-    let last = 0;
-    const toasted = new Map<string, number>();
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-
-    const toastOnce = (key: string, msg: string) => {
-      const now = Date.now();
-      if (now - (toasted.get(key) ?? 0) < TOAST_MS) return;
-      toasted.set(key, now);
-      live.current.onToast(msg);
-    };
-
-    const detect = (now: number) => {
-      if (stopped) return;
-      raf = requestAnimationFrame(detect);
-      const video = videoRef.current;
-      if (now - last < SCAN_MS || live.current.catching || !video || video.readyState < 2 || !video.videoWidth) return;
-      last = now;
-
-      const vw = video.videoWidth;
-      const vh = video.videoHeight;
-      const k = Math.min(1, SAMPLE_W / vw);
-      const w = Math.round(vw * k);
-      const h = Math.round(vh * k);
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
-      }
-      ctx.drawImage(video, 0, 0, w, h);
-      const qr = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "dontInvert" });
-      if (!qr) return;
-
-      const station = stationFromPayload(qr.data);
-      if (!station) return toastOnce("?", "That's not an INNEV8 QR code.");
-      if (live.current.found[station.id]) {
-        return toastOnce(station.id, `You already found QR code #${station.num}. Find another one!`);
-      }
-
-      // Pin the holographic copy on the real code: map its corners from the sampled frame onto the
-      // on-screen video, which is scaled to cover the viewport (object-fit: cover).
-      const { topLeftCorner: a, topRightCorner: b, bottomLeftCorner: c, bottomRightCorner: d } = qr.location;
-      const box = video.getBoundingClientRect();
-      const cover = Math.max(box.width / vw, box.height / vh);
-      const f = cover / k;
-      const ox = (box.width - vw * cover) / 2;
-      const oy = (box.height - vh * cover) / 2;
-      const side = Math.hypot(b.x - a.x, b.y - a.y) * f;
-      setTarget({
-        station,
-        x: ((a.x + b.x + c.x + d.x) / 4) * f + ox,
-        y: ((a.y + b.y + c.y + d.y) / 4) * f + oy,
-        size: clamp(side * 1.2, 96, 260),
-      });
-    };
-
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false })
-      .then(async (s) => {
-        if (stopped) {
-          s.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        stream = s;
-        const video = videoRef.current!;
-        video.srcObject = s;
-        await video.play().catch(() => {});
-        setCam("on");
-        raf = requestAnimationFrame(detect);
+    let alive = true;
+    let stage: { dispose: () => void } | undefined;
+    import("./ar/stage")
+      .then(({ createArStage }) =>
+        createArStage(hostRef.current!, videoRef.current!, hidden, preset, {
+          onPhase: (p, st) => {
+            setPhase(p);
+            setStation(st);
+          },
+          onCamera: setCam,
+          onGuide: setGuide,
+          onCollect: (st) => live.current.onCatch(st),
+        }),
+      )
+      .then((s) => {
+        if (alive) stage = s;
+        else s.dispose();
       })
-      .catch((e: unknown) => setCam(e instanceof DOMException && e.name === "NotAllowedError" ? "denied" : "unavailable"));
-
+      .catch(() => alive && setFailed(true));
     return () => {
-      stopped = true;
-      cancelAnimationFrame(raf);
-      stream?.getTracks().forEach((t) => t.stop());
+      alive = false;
+      stage?.dispose();
     };
-  }, []);
+  }, [hidden, preset]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -151,28 +95,41 @@ export function ScanView({
     return () => removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  useEffect(() => () => clearTimeout(catchTimer.current), []);
-
-  function catchIt() {
-    if (!target || catching) return;
-    setCatching(true);
-    navigator.vibrate?.([20, 40, 80]);
-    const { station } = target;
-    catchTimer.current = window.setTimeout(() => onCatch(station), CATCH_MS);
-  }
-
   const count = Object.keys(found).length;
+  const num = station ? `#${pad2(station.num)}` : "";
+  const help = TEST_MODE && phase === "searching" ? guide : null; // radar and arrows are a test aid
+
+  let hint: ReactNode = "Starting AR…";
+  if (failed) hint = "AR isn't available in this browser.";
+  else if (phase === "searching") {
+    hint = help?.turn ? (
+      TURN_HINT[help.turn]
+    ) : help ? (
+      <>
+        Hold still<span className="blink">…</span> something is here
+      </>
+    ) : (
+      <>
+        Scanning<span className="blink">…</span> look around for a hidden INNEV8 QR code
+      </>
+    );
+  } else if (phase === "found") hint = <>QR code {num} revealed!</>;
+  else if (phase === "ready") hint = "Tap the QR code to collect it";
+  else if (phase === "collecting") hint = <>Collecting QR code {num}…</>;
+  else if (phase === "done") hint = `You've found all ${TOTAL} QR codes!`;
+
+  const camMessage = cam ? CAM_MESSAGE[cam] : undefined;
 
   return (
     <div className={cam === "on" ? "scan is-live" : "scan"} role="dialog" aria-modal="true" aria-label="AR scanner">
       <video ref={videoRef} className="scan__video" playsInline muted autoPlay />
+      <div ref={hostRef} className="scan__stage" />
       <div className="scan__shade" aria-hidden="true"></div>
 
-      {/* No message on a non-https page: that only happens on a local test address. */}
-      {cam !== "on" && cam !== "insecure" && (
+      {camMessage && (
         <div className="scan__nocam">
-          {cam !== "starting" && <CameraOffIcon />}
-          <p>{CAM_MESSAGE[cam]}</p>
+          <CameraOffIcon />
+          <p>{camMessage}</p>
         </div>
       )}
 
@@ -186,7 +143,16 @@ export function ScanView({
         </span>
       </div>
 
-      {!target && (
+      {help && (
+        <div className="scan__radar" aria-hidden="true">
+          <span className="scan__radar-cone"></span>
+          {help.blips.map((a, i) => (
+            <span key={i} className="scan__radar-blip" style={{ "--a": `${a}rad` } as CSSProperties}></span>
+          ))}
+        </div>
+      )}
+
+      {phase === "searching" && (
         <div className="scanner scan__frame" aria-hidden="true">
           <span className="scanner__corner"></span>
           <span className="scanner__corner"></span>
@@ -196,36 +162,17 @@ export function ScanView({
         </div>
       )}
 
-      {target && (
-        <button
-          type="button"
-          className={`scan__qr scan__qr--${target.station.rarity}${catching ? " is-caught" : ""}`}
-          style={{
-            width: target.size,
-            transform: `translate(${target.x - target.size / 2}px, ${target.y - target.size / 2}px)`,
-          }}
-          onClick={catchIt}
-          aria-label={`Collect QR code #${target.station.num}`}
-        >
-          <span className="scan__ring" aria-hidden="true"></span>
-          <QrTile station={target.station} state="reveal" size="lg" />
-        </button>
+      {help?.turn && (
+        <span className={`scan__arrow scan__arrow--${help.turn}`} aria-hidden="true">
+          <ArrowRightIcon />
+        </span>
       )}
 
       <div className="scan__bottom">
         <p className="scan__hint" aria-live="polite">
-          {catching ? (
-            <>Collecting QR code #{target?.station.num}…</>
-          ) : target ? (
-            <>
-              <b>QR code #{target.station.num}</b> found! Tap it to collect.
-            </>
-          ) : (
-            <>
-              Scanning<span className="blink">…</span> point at an INNEV8 QR code
-            </>
-          )}
+          {hint}
         </p>
+        {phase === "searching" && guide && !guide.sensors && <p className="scan__tip">Drag to look around</p>}
       </div>
     </div>
   );

@@ -22,7 +22,7 @@ export const ZONES: Zone[] = [
 
 export type Station = {
   id: string;
-  /** Value printed in the QR code (also accepted as a `/?s=<code>` deep link). */
+  /** The code's value: seeds its 3D pattern, and opens it straight ahead as a `/?s=<code>` link. */
   code: string;
   num: number;
   name: string;

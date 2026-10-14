@@ -1988,6 +1988,8 @@ button.psec__head {
   position: absolute;
   left: 50%;
   top: 14%;
+  z-index: 2;
+  pointer-events: none;
   display: grid;
   justify-items: center;
   gap: 8px;
@@ -2093,66 +2095,6 @@ button.psec__head {
 .scan__hint b {
   color: #fff;
 }
-.scan__qr {
-  --rc: 18, 191, 234;
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1;
-  transition:
-    transform 0.18s linear,
-    width 0.18s linear;
-}
-.scan__qr--rare {
-  --rc: 32, 201, 188;
-}
-.scan__qr--legendary {
-  --rc: 214, 181, 109;
-}
-.scan__qr .qrt {
-  --qs: 64%;
-}
-.scan__ring {
-  position: absolute;
-  inset: 0;
-  border: 2px dashed rgba(var(--rc), 0.75);
-  border-radius: 50%;
-  box-shadow:
-    0 0 24px rgba(var(--rc), 0.45),
-    inset 0 0 24px rgba(var(--rc), 0.3);
-  animation: spin 6s linear infinite;
-}
-.scan__qr.is-caught .qrt {
-  animation: caught 0.9s var(--ease-io) forwards;
-}
-.scan__qr.is-caught .scan__ring {
-  border-style: solid;
-  animation: ring-close 0.9s var(--ease-io) forwards;
-}
-@keyframes caught {
-  30% {
-    transform: scale(1.15);
-  }
-  100% {
-    transform: scale(0) rotate(-20deg);
-    opacity: 0;
-  }
-}
-@keyframes ring-close {
-  60% {
-    transform: scale(0.35);
-    border-color: #fff;
-    opacity: 1;
-  }
-  100% {
-    transform: scale(0.1);
-    opacity: 0;
-  }
-}
-
 /* Catch / prize cards */
 .modal {
   position: fixed;
@@ -2325,154 +2267,16 @@ button.psec__head {
   }
 }
 
-/* Printable test markers (/markers) */
-.markers {
-  min-height: 100vh;
-  padding: 32px 20px 48px;
-  background: #eef4fb;
-  color: #030817;
-}
-.markers__head {
-  display: grid;
-  justify-items: start;
-  gap: 10px;
-  max-width: 900px;
-  margin: 0 auto 24px;
-}
-.markers__head h1 {
-  font: 900 26px/1.15 var(--font-h);
-}
-.markers__head p {
-  max-width: 70ch;
-  color: #334155;
-}
-.markers__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-  max-width: 900px;
-  margin: 0 auto;
-}
-.marker {
-  display: grid;
-  gap: 6px;
-  padding: 14px;
-  border: 2px solid #030817;
-  border-radius: 16px;
-  background: #fff;
-  text-align: center;
-  break-inside: avoid;
-}
-.marker__brand {
-  font: 700 10px/1 var(--font-m);
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--royal);
-}
-.marker__qr svg {
-  width: 100%;
-  height: auto;
-}
-.marker__title {
-  font: 800 15px/1.2 var(--font-h);
-}
-.marker__where {
-  font-size: 12px;
-  color: #475569;
-}
-.marker__code {
-  font: 600 11px/1 var(--font-m);
-  letter-spacing: 0.12em;
-  color: #64748b;
-}
-@media print {
-  body {
-    background: #fff;
-  }
-  body::after,
-  .markers__head {
-    display: none;
-  }
-  .markers {
-    padding: 0;
-    background: #fff;
-  }
-  .markers__grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* AR test (/showcase): hidden 3D QR codes around you, over the camera feed or a virtual room */
-.show {
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
-  background: var(--bg);
-}
-.show__video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity 0.4s;
-}
-.show.is-live .show__video {
-  opacity: 1;
-}
-.show__stage {
+/* AR layer in the scanner: the 3D canvas over the camera feed, plus the test-mode radar and arrow */
+.scan__stage {
   position: absolute;
   inset: 0;
 }
-.show__canvas {
+.scan__canvas {
   display: block;
   touch-action: none;
 }
-.show__top,
-.show__bottom {
-  position: absolute;
-  left: 0;
-  right: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-.show__top {
-  top: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: max(14px, env(safe-area-inset-top)) 16px 0;
-}
-.show__top > *,
-.show__bottom .btn {
-  pointer-events: auto;
-}
-.show__title {
-  padding: 7px 11px;
-  border: 1px solid rgba(214, 181, 109, 0.4);
-  border-radius: 999px;
-  background: rgba(var(--deep-rgb), 0.6);
-  font: 500 10px/1 var(--font-m);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--gold);
-}
-.show .scan__frame {
-  z-index: 1;
-  pointer-events: none;
-}
-.show__bottom {
-  bottom: 0;
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  padding: 56px 16px max(18px, env(safe-area-inset-bottom));
-  background: linear-gradient(transparent, rgba(2, 6, 17, 0.88) 45%);
-}
-.show__tip {
-  max-width: 340px;
+.scan__tip {
   font: 500 10px/1.5 var(--font-m);
   letter-spacing: 0.12em;
   text-align: center;
@@ -2481,7 +2285,7 @@ button.psec__head {
 }
 
 /* Radar: you're at the centre looking up the cone; each dot is a code still hidden */
-.show__radar {
+.scan__radar {
   position: absolute;
   top: calc(max(14px, env(safe-area-inset-top)) + 54px);
   left: 50%;
@@ -2497,13 +2301,13 @@ button.psec__head {
     rgba(var(--deep-rgb), 0.6);
   pointer-events: none;
 }
-.show__radar-cone {
+.scan__radar-cone {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   background: conic-gradient(from -32deg, rgba(18, 191, 234, 0.35) 0 64deg, transparent 64deg);
 }
-.show__radar-blip {
+.scan__radar-blip {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -2518,7 +2322,7 @@ button.psec__head {
 }
 
 /* Arrow toward the closest hidden code */
-.show__arrow {
+.scan__arrow {
   position: absolute;
   z-index: 2;
   display: grid;
@@ -2532,7 +2336,7 @@ button.psec__head {
   box-shadow: 0 0 20px rgba(18, 191, 234, 0.35);
   pointer-events: none;
 }
-.show__arrow svg {
+.scan__arrow svg {
   width: 22px;
   height: 22px;
   fill: none;
@@ -2541,30 +2345,30 @@ button.psec__head {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.show__arrow--left,
-.show__arrow--right {
+.scan__arrow--left,
+.scan__arrow--right {
   top: 50%;
   margin-top: -23px;
 }
-.show__arrow--left {
+.scan__arrow--left {
   left: 12px;
   transform: rotate(180deg);
   animation: nudge-left 1.2s ease-in-out infinite;
 }
-.show__arrow--right {
+.scan__arrow--right {
   right: 12px;
   animation: nudge-right 1.2s ease-in-out infinite;
 }
-.show__arrow--up,
-.show__arrow--down {
+.scan__arrow--up,
+.scan__arrow--down {
   left: 50%;
   margin-left: -23px;
 }
-.show__arrow--up {
+.scan__arrow--up {
   top: 22%;
   transform: rotate(-90deg);
 }
-.show__arrow--down {
+.scan__arrow--down {
   bottom: 24%;
   transform: rotate(90deg);
 }
@@ -2576,48 +2380,5 @@ button.psec__head {
 @keyframes nudge-left {
   50% {
     translate: -6px 0;
-  }
-}
-
-/* Start / collected / all-found panels */
-.show__panel {
-  position: absolute;
-  left: 50%;
-  top: 46%;
-  z-index: 3;
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  width: min(330px, calc(100% - 32px));
-  text-align: center;
-  transform: translate(-50%, -50%);
-  animation: show-in 0.45s var(--ease-out);
-}
-.show__panel .label {
-  margin: 0;
-}
-.show__panel h2 {
-  font: 800 20px/1.2 var(--font-h);
-}
-.show__panel > p:not(.label) {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-.show__panel .btn {
-  margin-top: 6px;
-}
-.show__meta {
-  font-size: 13px;
-  color: var(--muted);
-}
-.show__note {
-  font: 500 10.5px/1.5 var(--font-m);
-  color: var(--faint);
-}
-@keyframes show-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -42%) scale(0.94);
   }
 }
