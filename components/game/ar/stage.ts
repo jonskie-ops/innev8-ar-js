@@ -430,6 +430,10 @@ export async function createArStage(
         cam.updateProjectionMatrix();
       }
     }
+    // Big, but never wider than ~70% of the screen, whatever the camera's field of view
+    const hfov = 2 * Math.atan(Math.tan(deg(cam.fov) / 2) * cam.aspect);
+    const fit = Math.min(1, (2 * DIST * Math.tan(0.36 * hfov)) / (1.22 * SIZE));
+    for (const c of codes) c.spot.scale.setScalar(fit);
     cam.updateMatrixWorld();
 
     const pe = now - t0;
