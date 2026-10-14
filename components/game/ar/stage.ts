@@ -28,7 +28,12 @@ export type ArEvents = {
 };
 
 const DIST = 3.2; // how far away the codes sit
+const SIZE = 1.05; // code scale: about 1.3 units across, most of a phone screen's width
 const AIM_S = 0.45; // hold a code in the frame this long to reveal it
+// The reveal zone, in screen units (-1…1 across): about the inside of the scan frame. The arrows use
+// the same edges, so "hold still" always means the code is in the zone.
+const AIM_X = 0.5;
+const AIM_Y = 0.24;
 const REVEAL_S = 1.6;
 const COLLECT_S = 1.25;
 const FLOOR_Y = -1.5;
@@ -144,6 +149,7 @@ export async function createArStage(
 
   // ---- Effects around the code being revealed: halo, pulse rings, collect burst
   const fx = new THREE.Group();
+  fx.scale.setScalar(SIZE / 0.72); // the halo, rings and burst were sized for a 0.72-scale code
   const glowTex = track(
     canvasTexture(128, 128, (g) => {
       const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -263,7 +269,7 @@ export async function createArStage(
       );
       spot.lookAt(0, spot.position.y * 0.6, 0); // face the player, standing roughly upright
       const sway = new THREE.Group();
-      sway.scale.setScalar(0.72);
+      sway.scale.setScalar(SIZE);
       spot.add(sway);
       const qr = buildQr3d(station);
       qr.root.visible = false;
@@ -378,7 +384,7 @@ export async function createArStage(
 
   const guide = () => {
     const blips: Guide["blips"] = [];
-    let best: { a: number; y: number; ahead: boolean; target: boolean } | null = null;
+    let best: { a: number; x: number; y: number; ahead: boolean; target: boolean } | null = null;
     for (const c of codes) {
       if (c.got) continue;
       v.copy(c.spot.position).applyMatrix4(cam.matrixWorldInverse);
@@ -387,14 +393,15 @@ export async function createArStage(
       blips.push({ angle: a, target: isTarget });
       // Point to the chosen code; without one, to whichever is closest.
       if (!best || (isTarget && !best.target) || (isTarget === best.target && Math.abs(a) < Math.abs(best.a))) {
-        best = { a, y: ndc.copy(c.spot.position).project(cam).y, ahead: v.z < 0, target: isTarget };
+        ndc.copy(c.spot.position).project(cam);
+        best = { a, x: ndc.x, y: ndc.y, ahead: v.z < 0, target: isTarget };
       }
     }
     let turn: Guide["turn"] = null;
     if (best) {
-      if (!best.ahead || Math.abs(best.a) > deg(22)) turn = best.a > 0 ? "right" : "left";
-      else if (best.y < -0.45) turn = "down";
-      else if (best.y > 0.45) turn = "up";
+      if (!best.ahead || Math.abs(best.x) >= AIM_X) turn = best.a > 0 ? "right" : "left";
+      else if (best.y <= -AIM_Y) turn = "down";
+      else if (best.y >= AIM_Y) turn = "up";
     }
     if (turn !== lastTurn || now - guideAt > 0.1) {
       guideAt = now;
@@ -436,7 +443,7 @@ export async function createArStage(
         ndc.copy(c.spot.position).project(cam);
         // A faint shimmer gives it away once it's on screen
         c.shimmer.visible = v.z < 0 && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1;
-        if (v.z < 0 && Math.abs(ndc.x) < 0.3 && Math.abs(ndc.y) < 0.22) aimed = c;
+        if (v.z < 0 && Math.abs(ndc.x) < AIM_X && Math.abs(ndc.y) < AIM_Y) aimed = c;
       }
       shimmerMat.opacity = 0.25 + 0.25 * Math.sin(now * 9);
       aimFor = aimed ? aimFor + dt : 0;
