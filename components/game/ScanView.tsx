@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { pad2 } from "@/lib/dom";
 import { STATIONS, TOTAL, type Station } from "@/lib/hunt";
 import { TEST_MODE } from "@/lib/site";
-import type { ArPhase, CamState, Guide } from "./ar/stage";
+import type { ArPhase, ArStage, CamState, Guide } from "./ar/stage";
 import { ArrowRightIcon, CameraOffIcon, CloseIcon } from "./icons";
 
 /** Codes hidden around the player each time the scanner opens. */
@@ -47,28 +47,30 @@ export function ScanView({
   onCatch: (station: Station) => void;
   onClose: () => void;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const stageRef = useRef<ArStage | null>(null);
   const [hidden] = useState(() => pickHidden(found, target));
   const [phase, setPhase] = useState<ArPhase | "loading">("loading");
   const [station, setStation] = useState<Station | null>(null);
   const [cam, setCam] = useState<CamState | null>(null);
   const [guide, setGuide] = useState<Guide | null>(null);
   const [failed, setFailed] = useState(false);
+  const [xr, setXr] = useState<"on" | "offer" | null>(null);
 
   // The latest callbacks, for the AR stage that's set up once
-  const live = useRef({ onCatch });
+  const live = useRef({ onCatch, onClose });
   useEffect(() => {
-    live.current = { onCatch };
+    live.current = { onCatch, onClose };
   });
 
   // The 3D layer (and three.js) loads only when the scanner opens.
   useEffect(() => {
     let alive = true;
-    let stage: { dispose: () => void } | undefined;
     import("./ar/stage")
       .then(({ createArStage }) =>
-        createArStage(hostRef.current!, videoRef.current!, hidden, target, {
+        createArStage(hostRef.current!, videoRef.current!, rootRef.current!, hidden, target, {
           onPhase: (p, st) => {
             setPhase(p);
             setStation(st);
@@ -76,16 +78,19 @@ export function ScanView({
           onCamera: setCam,
           onGuide: setGuide,
           onCollect: (st) => live.current.onCatch(st),
+          onXr: setXr,
+          onEnd: () => live.current.onClose(), // e.g. the phone's back button during AR
         }),
       )
       .then((s) => {
-        if (alive) stage = s;
+        if (alive) stageRef.current = s;
         else s.dispose();
       })
       .catch(() => alive && setFailed(true));
     return () => {
       alive = false;
-      stage?.dispose();
+      stageRef.current?.dispose();
+      stageRef.current = null;
     };
   }, [hidden, target]);
 
@@ -125,10 +130,16 @@ export function ScanView({
   else if (phase === "collecting") hint = <>Collecting QR code {num}…</>;
   else if (phase === "done") hint = `You've found all ${TOTAL} QR codes!`;
 
-  const camMessage = cam ? CAM_MESSAGE[cam] : undefined;
+  const camMessage = cam && xr !== "on" ? CAM_MESSAGE[cam] : undefined;
 
   return (
-    <div className={cam === "on" ? "scan is-live" : "scan"} role="dialog" aria-modal="true" aria-label="AR scanner">
+    <div
+      ref={rootRef}
+      className={xr === "on" ? "scan is-xr" : cam === "on" ? "scan is-live" : "scan"}
+      role="dialog"
+      aria-modal="true"
+      aria-label="AR scanner"
+    >
       <video ref={videoRef} className="scan__video" playsInline muted autoPlay />
       <div ref={hostRef} className="scan__stage" />
       <div className="scan__shade" aria-hidden="true"></div>
@@ -184,6 +195,14 @@ export function ScanView({
           {hint}
         </p>
         {phase === "searching" && guide && !guide.sensors && <p className="scan__tip">Drag to look around</p>}
+        {xr === "offer" && (
+          <>
+            <button type="button" className="btn btn--primary btn--sm" onClick={() => stageRef.current?.startXr()}>
+              Start full AR
+            </button>
+            <p className="scan__tip">Walk around the QR codes: they stay in place as you move</p>
+          </>
+        )}
       </div>
     </div>
   );

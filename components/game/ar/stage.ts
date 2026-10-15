@@ -25,10 +25,24 @@ export type ArEvents = {
   onGuide: (guide: Guide | null) => void;
   /** Fired once the collect animation has played. */
   onCollect: (station: Station) => void;
+  /** Full movement tracking (WebXR) is running, or is available but needs a tap to start. */
+  onXr: (state: "on" | "offer" | null) => void;
+  /** The phone ended the AR session itself (e.g. the back button). */
+  onEnd: () => void;
+};
+
+export type ArStage = {
+  /** Start full movement tracking; call from a tap. */
+  startXr: () => void;
+  dispose: () => void;
 };
 
 const DIST = 3.2; // how far away the codes sit
 const SIZE = 1.05; // code scale: about 1.3 units across, most of a phone screen's width
+// With WebXR the units are real metres and the phone's movement is tracked: each code is a ~60 cm
+// panel 2 m away, so it grows as you walk up to it and shrinks as you back away.
+const XR_DIST = 2;
+const XR_SIZE = 0.5;
 const AIM_S = 0.45; // hold a code in the frame this long to reveal it
 // The reveal zone, in screen units (-1…1 across): about the inside of the scan frame. The arrows use
 // the same edges, so "hold still" always means the code is in the zone.
@@ -58,9 +72,10 @@ function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D)
 type Hidden = { station: Station; qr: Qr3d; spot: THREE.Group; sway: THREE.Group; shimmer: THREE.Points; got: boolean };
 
 /**
- * The scanner's AR layer. The given codes are hidden at fixed directions around the player; with
- * motion sensors they stay put in the room as the phone turns (like Pokémon GO's AR), otherwise drag
- * to look. Each is invisible until the camera is held on its spot, then it assembles into a 3D QR code,
+ * The scanner's AR layer. On phones with WebXR AR (Android Chrome with ARCore) the phone's movement is
+ * tracked, so the hidden codes are fixed in the room: walk away and they shrink, walk up and they grow.
+ * Elsewhere they sit at fixed directions around the player; motion sensors keep them put as the phone
+ * turns (like Pokémon GO's AR), otherwise drag to look. Each is invisible until the camera is held on its spot, then it assembles into a 3D QR code,
  * and a tap collects it. Drawn over the camera feed, or in a virtual room when there's no camera.
  * There's no set order: whichever code is revealed and tapped first is the one collected. `target` is
  * the code the player chose to look for, if any; the guide points to it, but it's hidden like the rest.
@@ -68,10 +83,12 @@ type Hidden = { station: Station; qr: Qr3d; spot: THREE.Group; sway: THREE.Group
 export async function createArStage(
   host: HTMLElement,
   video: HTMLVideoElement,
+  /** The scanner's root element: stays on screen over the AR view (WebXR DOM overlay). */
+  overlay: HTMLElement,
   hide: Station[],
   target: Station | undefined,
   ev: ArEvents,
-): Promise<{ dispose: () => void }> {
+): Promise<ArStage> {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -149,7 +166,6 @@ export async function createArStage(
 
   // ---- Effects around the code being revealed: halo, pulse rings, collect burst
   const fx = new THREE.Group();
-  fx.scale.setScalar(SIZE / 0.72); // the halo, rings and burst were sized for a 0.72-scale code
   const glowTex = track(
     canvasTexture(128, 128, (g) => {
       const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -249,12 +265,17 @@ export async function createArStage(
     return Math.atan2(-f.x, -f.z);
   };
 
+  let xr = false; // WebXR session running: real movement tracking, real distances
   const place = () => {
     for (const c of codes) {
       c.spot.removeFromParent();
       c.qr.dispose();
     }
     const n = hide.length;
+    const dist = xr ? XR_DIST : DIST;
+    const size = xr ? XR_SIZE : SIZE;
+    fx.scale.setScalar(size / 0.72); // the halo, rings and burst were sized for a 0.72-scale code
+    const c0 = cam.position;
     // Spread round the room in a random order, the nearest at least ~45° from where the phone points.
     const base = heading() + deg(45 + Math.random() * 30) * (Math.random() < 0.5 ? 1 : -1);
     const slots = hide.map((_, i) => i).sort(() => Math.random() - 0.5);
@@ -263,13 +284,13 @@ export async function createArStage(
       const pitch = deg(-14 + Math.random() * 22);
       const spot = new THREE.Group();
       spot.position.set(
-        -Math.sin(yaw) * Math.cos(pitch) * DIST,
-        Math.sin(pitch) * DIST,
-        -Math.cos(yaw) * Math.cos(pitch) * DIST,
+        c0.x - Math.sin(yaw) * Math.cos(pitch) * dist,
+        c0.y + Math.sin(pitch) * dist,
+        c0.z - Math.cos(yaw) * Math.cos(pitch) * dist,
       );
-      spot.lookAt(0, spot.position.y * 0.6, 0); // face the player, standing roughly upright
+      spot.lookAt(c0.x, c0.y + (spot.position.y - c0.y) * 0.6, c0.z); // face the player, roughly upright
       const sway = new THREE.Group();
-      sway.scale.setScalar(SIZE);
+      sway.scale.setScalar(size);
       spot.add(sway);
       const qr = buildQr3d(station);
       qr.root.visible = false;
@@ -329,11 +350,18 @@ export async function createArStage(
     }
   };
 
+  const stopCamera = () => {
+    camOn = false;
+    stream?.getTracks().forEach((t) => t.stop());
+    stream = undefined;
+    video.srcObject = null;
+  };
+
   // ---- Sizing
   const resize = () => {
     const w = host.clientWidth;
     const h = host.clientHeight;
-    if (!w || !h) return;
+    if (!w || !h || renderer.xr.isPresenting) return;
     renderer.setSize(w, h);
     cam.aspect = w / h;
     cam.updateProjectionMatrix();
@@ -365,11 +393,28 @@ export async function createArStage(
       new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1),
       cam,
     );
-    if (ray.intersectObject(active.qr.hit).length) {
-      navigator.vibrate?.([20, 40, 80]);
-      go("collecting");
-    }
+    if (ray.intersectObject(active.qr.hit).length) collect();
   };
+  const collect = () => {
+    navigator.vibrate?.([20, 40, 80]);
+    go("collecting");
+  };
+  // In WebXR a screen tap arrives as a "select" along a ray from the phone
+  const tapRay = renderer.xr.getController(0);
+  scene.add(tapRay);
+  const rot = new THREE.Matrix4();
+  tapRay.addEventListener("select", () => {
+    if (!xr || phase !== "ready" || !active) return;
+    rot.identity().extractRotation(tapRay.matrixWorld);
+    ray.ray.origin.setFromMatrixPosition(tapRay.matrixWorld);
+    ray.ray.direction.set(0, 0, -1).applyMatrix4(rot);
+    if (ray.intersectObject(active.qr.hit).length) collect();
+  });
+  // Taps on the scanner's own buttons shouldn't also count as AR taps
+  const noXrSelect = (e: Event) => {
+    if ((e.target as Element | null)?.closest?.("button, a")) e.preventDefault();
+  };
+  overlay.addEventListener("beforexrselect", noXrSelect);
   const el = renderer.domElement;
   el.addEventListener("pointerdown", onDown);
   el.addEventListener("pointermove", onMove);
@@ -406,7 +451,7 @@ export async function createArStage(
     if (turn !== lastTurn || now - guideAt > 0.1) {
       guideAt = now;
       lastTurn = turn;
-      ev.onGuide({ blips, turn, sensors });
+      ev.onGuide({ blips, turn, sensors: sensors || xr });
     }
   };
 
@@ -415,10 +460,16 @@ export async function createArStage(
     lastTime = time;
     now += dt;
 
-    // Point the virtual camera the way the phone points
-    if (sensors) cam.quaternion.slerp(sensorQ, 1 - Math.pow(1e-5, dt));
+    // Point the virtual camera the way the phone points (and, with WebXR, put it where the phone is)
+    if (xr) {
+      renderer.xr.updateCamera(cam);
+      if (needPlace) {
+        needPlace = false;
+        place(); // around where the phone is when tracking starts
+      }
+    } else if (sensors) cam.quaternion.slerp(sensorQ, 1 - Math.pow(1e-5, dt));
     else cam.quaternion.setFromEuler(oe.set(look.pitch, look.yaw, 0, "YXZ"));
-    if (camOn && video.videoWidth) {
+    if (!xr && camOn && video.videoWidth) {
       // Match the phone camera's field of view (~65–70° across the long side) so codes stay put on screen.
       const W = host.clientWidth;
       const H = host.clientHeight;
@@ -430,10 +481,12 @@ export async function createArStage(
         cam.updateProjectionMatrix();
       }
     }
-    // Big, but never wider than ~70% of the screen, whatever the camera's field of view
-    const hfov = 2 * Math.atan(Math.tan(deg(cam.fov) / 2) * cam.aspect);
-    const fit = Math.min(1, (2 * DIST * Math.tan(0.36 * hfov)) / (1.22 * SIZE));
-    for (const c of codes) c.spot.scale.setScalar(fit);
+    if (!xr) {
+      // Big, but never wider than ~70% of the screen, whatever the camera's field of view
+      const hfov = 2 * Math.atan(Math.tan(deg(cam.fov) / 2) * cam.aspect);
+      const fit = Math.min(1, (2 * DIST * Math.tan(0.36 * hfov)) / (1.22 * SIZE));
+      for (const c of codes) c.spot.scale.setScalar(fit);
+    }
     cam.updateMatrixWorld();
 
     const pe = now - t0;
@@ -521,14 +574,70 @@ export async function createArStage(
     renderer.render(scene, cam);
   };
 
+  // ---- WebXR: full movement tracking where the phone supports it
+  let session: XRSession | null = null;
+  let needPlace = false;
+  let tried = false;
+  const startXr = async () => {
+    if (session || disposed || !navigator.xr) return;
+    const first = !tried;
+    tried = true;
+    let s: XRSession;
+    try {
+      s = await navigator.xr.requestSession("immersive-ar", {
+        optionalFeatures: ["dom-overlay"],
+        domOverlay: { root: overlay },
+      });
+    } catch {
+      // The first try runs right after the Scan tap and can miss the browser's "user tapped" window;
+      // offer a button. If the player then declines, stay in the standard view.
+      ev.onXr(first ? "offer" : null);
+      return;
+    }
+    if (disposed) return void s.end().catch(() => {});
+    session = s;
+    stopCamera(); // the AR session drives the camera itself
+    renderer.xr.enabled = true;
+    renderer.xr.setReferenceSpaceType("local");
+    await renderer.xr.setSession(s);
+    xr = true;
+    showVirtual(false);
+    s.addEventListener("end", () => {
+      session = null;
+      xr = false;
+      if (!disposed) ev.onEnd();
+    });
+    // Hide the codes again around where the phone is now, at real distances
+    active?.spot.remove(fx);
+    active = null;
+    aimFor = 0;
+    needPlace = true;
+    ev.onXr("on");
+    go(hide.length ? "searching" : "done");
+  };
+
   place();
   renderer.setAnimationLoop(tick);
-  void startCamera();
   go(hide.length ? "searching" : "done");
+  const xrOk = navigator.xr ? await navigator.xr.isSessionSupported("immersive-ar").catch(() => false) : false;
+  if (xrOk) {
+    void startXr().then(() => {
+      if (!xr && !disposed) void startCamera(); // standard view while the "Start AR" button waits
+    });
+  } else void startCamera();
 
   return {
+    startXr: () => {
+      if (xr) return;
+      stopCamera();
+      void startXr().then(() => {
+        if (!xr && !disposed) void startCamera();
+      });
+    },
     dispose: () => {
       disposed = true;
+      void session?.end().catch(() => {});
+      overlay.removeEventListener("beforexrselect", noXrSelect);
       renderer.setAnimationLoop(null);
       ro.disconnect();
       removeEventListener("deviceorientation", onOrient);

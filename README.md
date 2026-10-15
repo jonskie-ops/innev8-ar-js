@@ -35,9 +35,13 @@ site is playable now; set it to `false` for the real launch.
 
 1. Tapping **Scan** opens the AR view (`components/game/ScanView.tsx`, 3D layer in `components/game/ar/`,
    built with [three.js](https://threejs.org)) and hides up to 3 of the player's unfound codes around them.
-2. The phone's motion sensors keep the codes fixed in the room as the phone turns (like Pokémon GO's
-   AR); without sensors, drag to look. Turning works; walking toward a code doesn't (a phone browser
-   can't track position without a reference in the camera image).
+2. **Android (Chrome on ARCore phones):** the scanner starts a WebXR AR session, which tracks the
+   phone's movement. Codes are ~60 cm panels 2 m away, fixed in the room: back away and they shrink,
+   walk up and they grow. If the browser needs a fresh tap to start AR, a **Start full AR** button
+   appears; the phone's back button ends AR and closes the scanner.
+   **Everywhere else (iPhone, desktop):** the phone's motion sensors keep the codes fixed in the room
+   as the phone turns (like Pokémon GO's AR), but their size doesn't change as you walk (Safari has no
+   WebXR); without sensors, drag to look.
 3. Each code is invisible until it's held in the scan frame for half a second, then it assembles from
    glowing blocks into a 3D QR code (`ar/qr3d.ts`, its pattern generated from the code's value).
    Tapping it collects it and the catch card opens. Progress is saved on the device (localStorage).

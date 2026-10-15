@@ -74,6 +74,12 @@ export function Game({ phase }: { phase: Phase }) {
   }, [pending, signedUp, p.found, showToast]);
 
   const closeScan = useCallback(() => setScan(null), []);
+  // Fetch the AR scanner's 3D code in the background, so Scan opens quickly (and in time for the
+  // browser to still count the tap when it asks to start full AR).
+  useEffect(() => {
+    const id = window.setTimeout(() => void import("./ar/stage"), 2500);
+    return () => clearTimeout(id);
+  }, []);
   // Opened by a tap, so iPhone can ask for the motion sensors the AR view turns with.
   const openScan = (target?: Station) => {
     askMotion();

@@ -1983,6 +1983,15 @@ button.psec__head {
 .scan.is-live .scan__video {
   opacity: 1;
 }
+/* WebXR: the phone draws the camera and the 3D codes; the scanner UI sits on top */
+.scan.is-xr {
+  background: transparent;
+  animation: none;
+}
+.scan.is-xr .scan__video,
+.scan.is-xr .scan__stage {
+  display: none;
+}
 .scan__shade {
   position: absolute;
   inset: 0;
