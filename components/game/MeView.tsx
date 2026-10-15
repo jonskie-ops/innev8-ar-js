@@ -45,7 +45,7 @@ export function MeView({
     if (editing) nameRef.current?.focus();
   }, [editing]);
 
-  const times = Object.values(found).filter(Boolean);
+  const times = STATIONS.map((s) => found[s.id]).filter(Boolean);
   const count = STATIONS.filter((s) => found[s.id]).length;
   // Found codes first (oldest first), then the ones still out there.
   const strip = [...STATIONS]

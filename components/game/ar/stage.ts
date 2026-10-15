@@ -50,7 +50,6 @@ const AIM_X = 0.5;
 const AIM_Y = 0.24;
 const REVEAL_S = 1.6;
 const COLLECT_S = 1.25;
-const FLOOR_Y = -1.5;
 const BURST = 120;
 const PALETTE = [0x5fd8f5, 0x12bfea, 0xc9f4ff, 0x8fe9ff, 0xffffff];
 
@@ -75,8 +74,9 @@ type Hidden = { station: Station; qr: Qr3d; spot: THREE.Group; sway: THREE.Group
  * The scanner's AR layer. On phones with WebXR AR (Android Chrome with ARCore) the phone's movement is
  * tracked, so the hidden codes are fixed in the room: walk away and they shrink, walk up and they grow.
  * Elsewhere they sit at fixed directions around the player; motion sensors keep them put as the phone
- * turns (like Pokémon GO's AR), otherwise drag to look. Each is invisible until the camera is held on its spot, then it assembles into a 3D QR code,
- * and a tap collects it. Drawn over the camera feed, or in a virtual room when there's no camera.
+ * turns (like Pokémon GO's AR), otherwise drag to look. Each is invisible until the camera is held on
+ * its spot, then it assembles into a 3D QR code, and a tap collects it. Drawn over the camera feed, or
+ * on a plain dark background when there's no camera.
  * There's no set order: whichever code is revealed and tapped first is the one collected. `target` is
  * the code the player chose to look for, if any; the guide points to it, but it's hidden like the rest.
  */
@@ -111,35 +111,16 @@ export async function createArStage(
   const cam = new THREE.PerspectiveCamera(62, 1, 0.05, 80);
   cam.rotation.order = "YXZ";
 
-  // ---- Virtual room, shown when there's no camera feed
+  // ---- Virtual room, shown when there's no camera feed: plain dark space with faint drifting specks
+  // (no floor), so turning still shows movement
   const virtual = new THREE.Group();
   scene.add(virtual);
-  const gridTex = track(
-    canvasTexture(1024, 1024, (g) => {
-      g.fillStyle = "#061030";
-      g.fillRect(0, 0, 1024, 1024);
-      for (let i = 0; i <= 1024; i += 32) {
-        g.fillStyle = i % 128 === 0 ? "rgba(18,191,234,0.2)" : "rgba(18,191,234,0.07)";
-        g.fillRect(i, 0, 2, 1024);
-        g.fillRect(0, i, 1024, 2);
-      }
-      const v = g.createRadialGradient(512, 512, 100, 512, 512, 540);
-      v.addColorStop(0, "rgba(3,8,23,0)");
-      v.addColorStop(1, "rgba(3,8,23,0.95)");
-      g.fillStyle = v;
-      g.fillRect(0, 0, 1024, 1024);
-    }),
-  );
-  const floor = new THREE.Mesh(track(new THREE.PlaneGeometry(16, 16)), track(new THREE.MeshBasicMaterial({ map: gridTex })));
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = FLOOR_Y;
-  virtual.add(floor);
   const dustGeo = track(new THREE.BufferGeometry());
   const dustPos = new Float32Array(300 * 3);
   for (let i = 0; i < 300; i++) {
     const a = Math.random() * Math.PI * 2;
     const r = 1.5 + Math.random() * 7;
-    dustPos.set([Math.cos(a) * r, FLOOR_Y + Math.random() * 4.5, Math.sin(a) * r], i * 3);
+    dustPos.set([Math.cos(a) * r, -1.5 + Math.random() * 4.5, Math.sin(a) * r], i * 3);
   }
   dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
   const dust = new THREE.Points(

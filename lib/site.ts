@@ -25,7 +25,7 @@ export const PROVINCES = [
 
 export const TITLE = "INNEV8 QR Code Hunt · Regional ICT Summit 2026";
 export const DESCRIPTION =
-  "Hunt the 10 INNEV8 QR codes hidden around the Regional ICT Summit 2026 and collect them all. Nov 20–21, Leyte Academic Center, Palo, Leyte.";
+  "Hunt the 8 INNEV8 QR codes hidden around the Regional ICT Summit 2026 and collect them all. Nov 20–21, Leyte Academic Center, Palo, Leyte.";
 
 export const GOOGLE_CALENDAR_URL =
   "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Regional%20ICT%20Summit%202026&dates=20261120/20261122&location=Leyte%20Academic%20Center%2C%20Barangay%20Pawing%2C%20Palo%2C%20Leyte&details=INNEV8%20ICT%20Federation%20presents%20the%20Regional%20ICT%20Summit%202026.%20Bridging%20Industries.%20Building%20Partnerships.%20Creating%20a%20Digital%20Future.";

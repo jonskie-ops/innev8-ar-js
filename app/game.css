@@ -414,17 +414,18 @@ code {
   position: relative;
   height: 100%;
 }
-/* 3D venue map: a holographic floor plan on a tilted grid (after the main site's finale map).
-   Room tags and QR beacons are counter-rotated so they stand upright on the plane. */
+/* Venue map: a holographic floor plan seen straight from above (a flat aerial view), with room
+   tags and QR beacons standing on it like map pins. --tilt/--turn tip the plane back into a 3D
+   perspective view if ever wanted (e.g. 42deg / -6deg); pins are counter-rotated to stay upright. */
 .v3d {
-  --tilt: 42deg;
-  --turn: -6deg;
+  --tilt: 0deg;
+  --turn: 0deg;
   position: absolute;
   inset: 0;
   isolation: isolate;
   overflow: hidden;
   container-type: size;
-  background: radial-gradient(90% 60% at 50% 72%, rgba(16, 42, 114, 0.5), rgba(var(--shade-rgb), 0.92) 75%);
+  background: radial-gradient(90% 60% at 50% 50%, rgba(16, 42, 114, 0.5), rgba(var(--shade-rgb), 0.92) 75%);
 }
 /* The map owns all touches (pinch to zoom, drag to pan); nothing behind it scrolls. */
 .v3d {
@@ -471,12 +472,11 @@ code {
 .v3d__world {
   position: absolute;
   left: 50%;
-  bottom: 11%;
-  bottom: 11cqh;
-  width: 114%;
-  width: min(114cqw, 78cqh); /* fill a phone's width; on short, wide screens fit the height instead */
+  top: 50%;
+  width: 100%;
+  width: min(100cqw, 66cqh); /* fill a phone's width; on short, wide screens fit the height instead */
   aspect-ratio: 360/520;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   perspective: 1000px;
   perspective-origin: 50% 0%;
 }
@@ -580,13 +580,6 @@ code {
   stroke-width: 1.2;
   opacity: 0;
   animation: v3d-show 1s ease 0.9s forwards;
-}
-.v3d__seats {
-  stroke: rgba(143, 233, 255, 0.22);
-  stroke-dasharray: 5 4;
-}
-.v3d__gold {
-  stroke: rgba(214, 181, 109, 0.85);
 }
 @keyframes v3d-show {
   to {
@@ -693,14 +686,6 @@ code {
   white-space: nowrap;
   color: var(--text);
   animation: v3d-tag 0.6s var(--ease-out) calc(1.2s + var(--i) * 0.1s) backwards;
-}
-.v3d__tag--gold::before {
-  background: linear-gradient(to top, #f3d995, rgba(214, 181, 109, 0));
-  box-shadow: 0 0 10px rgba(214, 181, 109, 0.7);
-}
-.v3d__tag--gold i {
-  border-color: rgba(214, 181, 109, 0.6);
-  color: var(--gold);
 }
 .v3d__tag--dim::before {
   opacity: 0.45;
@@ -883,7 +868,7 @@ code {
 /* QR collection */
 .dex__grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 .dex__cell {
@@ -2224,7 +2209,7 @@ button.psec__head {
 }
 .prize__codes {
   display: grid;
-  grid-template-columns: repeat(5, 40px);
+  grid-template-columns: repeat(4, 40px);
   gap: 12px 10px;
   margin: 10px 0;
 }

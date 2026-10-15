@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 import { STATIONS, ZONES } from "@/lib/hunt";
 import { VENUE } from "@/lib/venue";
 import { CheckIcon, FitIcon, MinusIcon, PlusIcon } from "./icons";
-import { cameraTransform, MAX_ZOOM, MIN_ZOOM, useMapCamera } from "./useMapCamera";
+import { cameraTransform, MAX_ZOOM, useMapCamera, type Home } from "./useMapCamera";
 
 /** The part of the 360×520 plan shown on the plane: framed on the two buildings (same aspect ratio). */
 const VIEW = { x: 30, y: 26, w: 300, h: 433 };
@@ -30,33 +30,41 @@ const at = (x: number, y: number, i = 0) =>
     "--i": i,
   }) as CSSProperties;
 
-const WALLS = VENUE.convention + VENUE.annex;
+/**
+ * The map opens zoomed in and centred on the Annex A–B building and its codes (as wide as a phone allows), and doesn't zoom
+ * out any further than that.
+ */
+const HOME: Home = {
+  z: 1.3,
+  x: (161 - (VIEW.x + VIEW.w / 2)) / VIEW.w,
+  y: (137 - (VIEW.y + VIEW.h / 2)) / VIEW.h, // the building with its pins, balanced top and bottom
+};
+
+/** Zones labelled on the map (the Courtyard keeps its codes, just not a label). */
+const MAP_ZONES = ZONES.filter((z) => z.id !== "court");
+
+const WALLS = VENUE.annex;
 
 /** Interior partitions. Illustrative: the real buildings' outlines come from OSM, their insides don't. */
 const PARTITIONS = [
-  "M74 279V356M246.5 283V357", // Convention Complex: wings
-  "M135.3 388H146M164 388H175", // Convention Complex: entrance doors
   "M54 120H267M54 136H267", // Annex A: corridor
   "M107 57.5V120M160 57.5V120M213 57.5V120", // Annex A: rooms
   "M160 136V160M160 182V207", // Annex A: halls
 ].join("");
 
-/** Parking stalls in front of the entrance. */
+/** Parking stalls. */
 const STALLS = Array.from({ length: 15 }, (_, i) => {
   const x = 72 + i * 11;
   return `M${x} 446V464M${x} 474V492`;
 }).join("");
 
 /** Context labels (not hunt zones). */
-const LANDMARKS = [
-  { name: "Parking", x: 112, y: 452, tone: "dim" },
-  { name: "Entrance", x: 155, y: 428, tone: "gold" },
-] as const;
+const LANDMARKS = [{ name: "Parking", x: 112, y: 452, tone: "dim" }] as const;
 
 /**
- * Leyte Academic Center as a glowing holographic site plan on a tilted grid (styled after the main
- * site's Eastern Visayas map). Zone names and QR spots stand upright on the plane; tap a spot to
- * select it. Pinch, wheel or the +/− buttons zoom (MIN_ZOOM–MAX_ZOOM); drag pans when zoomed in.
+ * Leyte Academic Center as a glowing holographic site plan, seen straight from above (styled after
+ * the main site's Eastern Visayas map). Zone names and QR spots stand on it like map pins; tap a spot
+ * to select it. Pinch, wheel or the +/− buttons zoom (HOME.z–MAX_ZOOM); drag pans.
  */
 export function VenueMap({
   found,
@@ -67,9 +75,8 @@ export function VenueMap({
   focus: string | null;
   onFocus: (id: string) => void;
 }) {
-  const { boxRef, layerRef, cam, gesturing, zoomIn, zoomOut, reset } = useMapCamera();
+  const { boxRef, layerRef, mapRef, cam, atHome, gesturing, zoomIn, zoomOut, reset } = useMapCamera(HOME);
   const zoomed = cam.z > 1.001;
-  const moved = cam.z !== 1 || cam.x !== 0 || cam.y !== 0;
 
   return (
     <div
@@ -80,7 +87,7 @@ export function VenueMap({
     >
       <div className="v3d__glow" aria-hidden="true"></div>
       <div ref={layerRef} className="v3d__cam" style={{ transform: cameraTransform(cam) }}>
-        <div className="v3d__world">
+        <div ref={mapRef} className="v3d__world">
           <div className="v3d__plane">
             <div className="v3d__grid" aria-hidden="true"></div>
             <div className="v3d__sweep" aria-hidden="true"></div>
@@ -94,17 +101,10 @@ export function VenueMap({
                 <path className="v3d__other" d={VENUE.academic} />
               </g>
               <g className="v3d__walkways">
-                <path d="M54 228H316M155 410V438" />
+                <path d="M54 228H316" />
               </g>
               <path className="v3d__slab" d={WALLS} />
               <g className="v3d__details">
-                {/* Convention Complex: stage, arena floor, seating */}
-                <rect className="v3d__gold" x="118" y="257" width="84" height="14" rx="3" />
-                <rect x="112" y="296" width="96" height="64" rx="3" />
-                <path d="M160 296V360" />
-                <circle cx="160" cy="328" r="11" />
-                <path className="v3d__seats" d="M92 300V356M100 300V356M220 300V356M228 300V356" />
-                <path className="v3d__gold" d="M149 406l6-6 6 6M149 399l6-6 6 6" />
                 {/* Annex A: exhibit booths */}
                 <rect x="66" y="148" width="22" height="12" rx="2" />
                 <rect x="118" y="150" width="22" height="12" rx="2" />
@@ -129,7 +129,7 @@ export function VenueMap({
               ))}
             </svg>
 
-            {ZONES.map((z, i) => (
+            {MAP_ZONES.map((z, i) => (
               <span key={z.id} className="v3d__up v3d__tag" style={at(z.label.x, z.label.y, i)} aria-hidden="true">
                 <i>{z.name}</i>
               </span>
@@ -138,7 +138,7 @@ export function VenueMap({
               <span
                 key={l.name}
                 className={`v3d__up v3d__tag v3d__tag--${l.tone}`}
-                style={at(l.x, l.y, ZONES.length + i)}
+                style={at(l.x, l.y, MAP_ZONES.length + i)}
                 aria-hidden="true"
               >
                 <i>{l.name}</i>
@@ -172,10 +172,10 @@ export function VenueMap({
         <button type="button" className="icon-btn" onClick={zoomIn} disabled={cam.z >= MAX_ZOOM} aria-label="Zoom in">
           <PlusIcon />
         </button>
-        <button type="button" className="icon-btn" onClick={zoomOut} disabled={cam.z <= MIN_ZOOM} aria-label="Zoom out">
+        <button type="button" className="icon-btn" onClick={zoomOut} disabled={cam.z <= HOME.z} aria-label="Zoom out">
           <MinusIcon />
         </button>
-        {moved && (
+        {!atHome && (
           <button type="button" className="icon-btn" onClick={reset} aria-label="Reset map view">
             <FitIcon />
           </button>

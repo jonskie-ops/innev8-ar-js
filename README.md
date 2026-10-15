@@ -1,9 +1,9 @@
 # INNEV8-AR-JS
 
 **INNEV8 QR Code Hunt** for the Regional ICT Summit 2026: a Pokémon GO–style game. **Players hunt for
-10 virtual INNEV8 QR codes hidden around the venue.** Nothing is printed: each code is invisible until
+virtual INNEV8 QR codes hidden around the venue (a test sample of 8 for now).** Nothing is printed: each code is invisible until
 the phone's camera points at its spot, then it assembles into an animated 3D QR code (the AR part);
-tapping it collects it. Collect all 10 to win a prize.
+tapping it collects it. Collect them all to win a prize.
 
 ## Run
 
@@ -77,7 +77,7 @@ access when Scan is tapped.
 | `components/game/DexView.tsx`, `QuestsView.tsx`, `MeView.tsx` | Codes (collection), Quests and Me tabs |
 | `components/game/CatchCard.tsx`, `PrizeCard.tsx`, `Onboarding.tsx` | Catch result, prize, first run |
 | `components/game/QrTile.tsx`, `QrGlyph.tsx` | Floating QR tiles; each code's decorative pattern |
-| `lib/hunt.ts` | The 10 QR codes: zones, clues, QR values, map positions, points |
+| `lib/hunt.ts` | The QR codes (8-code test sample): zones, clues, values, map positions, points |
 | `lib/venue.ts` | Real building outlines for the map (© OpenStreetMap contributors, ODbL) |
 | `components/game/VenueMap.tsx` | 3D holographic venue map |
 | `lib/store.ts` | Saved progress |

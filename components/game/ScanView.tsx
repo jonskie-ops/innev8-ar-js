@@ -102,7 +102,7 @@ export function ScanView({
     return () => removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const count = Object.keys(found).length;
+  const count = STATIONS.filter((s) => found[s.id]).length;
   const num = station ? `#${pad2(station.num)}` : "";
   const help = TEST_MODE && phase === "searching" ? guide : null; // radar and arrows are a test aid
   const chosen = target && !found[target.id] ? target : undefined;

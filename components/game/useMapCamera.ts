@@ -1,59 +1,93 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { clamp } from "@/lib/dom";
 
-export const MIN_ZOOM = 0.8; // zoom-out limit: a little wider than the default framing, no further
-export const MAX_ZOOM = 3;
+export const MAX_ZOOM = 3; // the zoom-out limit is the home view's zoom (see `Home`)
 const STEP = 1.5; // per +/− button press
 const DRAG_PX = 6; // movement before a press counts as a drag (and not a tap on a beacon)
-
+const PAD = 0.08; // panning room past the map's edges, as a fraction of the box
 export type Camera = { z: number; x: number; y: number };
-const HOME: Camera = { z: 1, x: 0, y: 0 };
 
-/** Zoom by `k` keeping the point (px, py), relative to the box centre, fixed on screen. */
-function zoomAt(c: Camera, k: number, px: number, py: number): Camera {
-  const z = clamp(c.z * k, MIN_ZOOM, MAX_ZOOM);
+/**
+ * Where the map opens: zoom `z`, centred on the point (`x`, `y`) given as a fraction of the map's
+ * width and height from its centre (−0.5…0.5). `z` is also as far out as the map zooms.
+ */
+export type Home = { z: number; x: number; y: number };
+
+/** Zoom by `k` (no further out than `min`) keeping the point (px, py), relative to the box centre, fixed on screen. */
+function zoomAt(c: Camera, k: number, px: number, py: number, min: number): Camera {
+  const z = clamp(c.z * k, min, MAX_ZOOM);
   const r = z / c.z;
   return { z, x: px - (px - c.x) * r, y: py - (py - c.y) * r };
 }
 
-/** Keep the zoomed content covering the box: no panning at or below 1×, bounded panning above. */
-function bound(c: Camera, w: number, h: number): Camera {
-  const z = clamp(c.z, MIN_ZOOM, MAX_ZOOM);
-  const mx = Math.max(0, ((z - 1) * w) / 2);
-  const my = Math.max(0, ((z - 1) * h) / 2);
+/**
+ * Keep the zoomed map (nearly) covering the box: pan only as far as its edges, plus a little, and
+ * always at least as far as the home view (`home`), so it is never cut short on a short screen.
+ */
+function bound(c: Camera, w: number, h: number, min: number, home: Camera): Camera {
+  const z = clamp(c.z, min, MAX_ZOOM);
+  const mx = Math.max(Math.max(0, ((z - 1) * w) / 2) + PAD * w, Math.abs(home.x));
+  const my = Math.max(Math.max(0, ((z - 1) * h) / 2) + PAD * h, Math.abs(home.y));
   return { z, x: clamp(c.x, -mx, mx), y: clamp(c.y, -my, my) };
 }
 
 export const cameraTransform = (c: Camera) => `translate(${c.x}px, ${c.y}px) scale(${c.z})`;
 
+/** The opening view for a map of mw×mh px: its home point in the middle of the box. */
+const homeCam = (h0: Home, mw: number, mh: number): Camera => ({ z: h0.z, x: -h0.x * mw * h0.z, y: -h0.y * mh * h0.z });
+const same = (a: Camera, b: Camera) => a.z === b.z && a.x === b.x && a.y === b.y;
+
 /**
  * Pinch / wheel zoom and drag-to-pan for the venue map. During a gesture the transform is written
  * straight to the layer (no re-render per frame); React state is synced when the gesture ends.
  */
-export function useMapCamera() {
+export function useMapCamera(home: Home) {
   const boxRef = useRef<HTMLDivElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
-  const camRef = useRef<Camera>(HOME);
-  const [cam, setCam] = useState<Camera>(HOME);
+  const mapRef = useRef<HTMLDivElement>(null); // the map itself, to measure its size
+  const min = home.z; // never zoom out past the home view
+  const [start] = useState<Camera>(() => ({ z: home.z, x: 0, y: 0 })); // until the map is measured
+  const camRef = useRef<Camera>(start);
+  const homeRef = useRef<Camera>(start); // the home view, for the pan limits in gestures
+  const [cam, setCam] = useState<Camera>(start);
+  const [homeView, setHomeView] = useState<Camera>(start);
   const [gesturing, setGesturing] = useState(false);
 
   const commit = useCallback((c: Camera) => {
     camRef.current = c;
     setCam(c);
   }, []);
+  const goHome = useCallback(() => {
+    const map = mapRef.current;
+    const c = homeCam(home, map?.offsetWidth ?? 0, map?.offsetHeight ?? 0);
+    homeRef.current = c;
+    setHomeView(c);
+    commit(c);
+  }, [commit, home]);
+
+  // Open on the home view without animating into it (the home view depends on the map's size).
+  useLayoutEffect(() => {
+    const layer = layerRef.current;
+    if (!layer) return;
+    layer.style.transition = "none";
+    goHome();
+    layer.style.transform = cameraTransform(camRef.current);
+    void layer.offsetWidth;
+    layer.style.transition = "";
+  }, [goHome]);
 
   const zoomBy = useCallback(
     (k: number) => {
       const r = boxRef.current?.getBoundingClientRect();
-      commit(bound(zoomAt(camRef.current, k, 0, 0), r?.width ?? 0, r?.height ?? 0));
+      commit(bound(zoomAt(camRef.current, k, 0, 0, min), r?.width ?? 0, r?.height ?? 0, min, homeRef.current));
     },
-    [commit],
+    [commit, min],
   );
   const zoomIn = useCallback(() => zoomBy(STEP), [zoomBy]);
   const zoomOut = useCallback(() => zoomBy(1 / STEP), [zoomBy]);
-  const reset = useCallback(() => commit(HOME), [commit]);
+  const reset = goHome;
 
   useEffect(() => {
     const box = boxRef.current!;
@@ -109,10 +143,10 @@ export function useMapCamera() {
       const { cx, cy, w, h } = centre();
       let next: Camera = { ...start.cam, x: start.cam.x + dx, y: start.cam.y + dy };
       if (pts.size >= 2 && start.dist > 0) {
-        next = zoomAt(start.cam, dist / start.dist, start.mid.x - cx, start.mid.y - cy);
+        next = zoomAt(start.cam, dist / start.dist, start.mid.x - cx, start.mid.y - cy, min);
         next = { ...next, x: next.x + dx, y: next.y + dy };
       }
-      live(bound(next, w, h));
+      live(bound(next, w, h, min, homeRef.current));
     };
 
     const onUp = (e: PointerEvent) => {
@@ -132,7 +166,15 @@ export function useMapCamera() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const { cx, cy, w, h } = centre();
-      commit(bound(zoomAt(camRef.current, Math.exp(-e.deltaY * 0.0015), e.clientX - cx, e.clientY - cy), w, h));
+      commit(
+        bound(
+          zoomAt(camRef.current, Math.exp(-e.deltaY * 0.0015), e.clientX - cx, e.clientY - cy, min),
+          w,
+          h,
+          min,
+          homeRef.current,
+        ),
+      );
     };
 
     // A drag that started on a beacon must not also select it.
@@ -157,7 +199,7 @@ export function useMapCamera() {
       box.removeEventListener("wheel", onWheel);
       box.removeEventListener("click", onClickCapture, true);
     };
-  }, [commit]);
+  }, [commit, min]);
 
-  return { boxRef, layerRef, cam, gesturing, zoomIn, zoomOut, reset };
+  return { boxRef, layerRef, cam, mapRef, atHome: same(cam, homeView), gesturing, zoomIn, zoomOut, reset };
 }

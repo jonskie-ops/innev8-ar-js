@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { scoreOf, stationFromPayload, TOTAL, type Station } from "@/lib/hunt";
+import { scoreOf, STATIONS, stationFromPayload, TOTAL, type Station } from "@/lib/hunt";
 import { askMotion } from "@/lib/motion";
 import { TEST_MODE } from "@/lib/site";
 import { progress, useProgress } from "@/lib/store";
@@ -54,7 +54,7 @@ export function Game({ phase }: { phase: Phase }) {
 
   // Sign-up needs both steps; older saves have a name but no province yet.
   const signedUp = p.onboarded && p.province !== "";
-  const count = Object.keys(p.found).length;
+  const count = STATIONS.filter((s) => p.found[s.id]).length;
   const points = scoreOf(p.found);
 
   useEffect(() => {
