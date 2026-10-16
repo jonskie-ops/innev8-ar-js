@@ -259,7 +259,7 @@ code {
   position: relative;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 20px 16px 24px;
+  padding: 20px 16px 116px; /* the end of a page scrolls clear of the corner Qufoo */
 }
 /* The Map tab is a full-bleed map, not a scrolling page. */
 .game__body--map {
@@ -792,7 +792,7 @@ code {
 }
 .v3d__credit {
   position: absolute;
-  right: 12px;
+  left: 12px; /* the corner Qufoo stands on the right */
   bottom: 8px;
   font: 500 8px/1 var(--font-m);
   letter-spacing: 0.06em;

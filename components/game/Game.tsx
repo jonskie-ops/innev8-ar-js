@@ -6,7 +6,7 @@ import { askMotion } from "@/lib/motion";
 import { TEST_MODE } from "@/lib/site";
 import { progress, useProgress } from "@/lib/store";
 import { CountdownSection } from "../CountdownSection";
-import { explainMenu, type TourStop } from "../Mascot";
+import { explainMenu, QufooDock, type TourStop } from "../Mascot";
 import type { Phase } from "../Countdown";
 import { CatchCard } from "./CatchCard";
 import { DexView } from "./DexView";
@@ -189,6 +189,8 @@ export function Game({ phase }: { phase: Phase }) {
         {TABS.slice(2).map((t) => (
           <TabButton key={t.id} tab={t} active={tab === t.id} onSelect={selectTab} />
         ))}
+        {/* Qufoo waits above the menu's right end; tap him for help with this page */}
+        <QufooDock page={tab} hidden={tab === "map" && focus !== null} />
       </nav>
 
       {scan && <ScanView target={scan.target} found={p.found} onCatch={onCatch} onClose={closeScan} />}

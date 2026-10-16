@@ -30,6 +30,8 @@ export type ArEvents = {
   onXr: (state: "on" | "offer" | null) => void;
   /** The phone ended the AR session itself (e.g. the back button). */
   onEnd: () => void;
+  /** While searching: a hidden code is (or is no longer) on screen. */
+  onNear?: (near: boolean) => void;
 };
 
 export type ArStage = {
@@ -53,6 +55,7 @@ const AIM_S = 0.45; // hold a code in the frame this long to reveal it
 // the same edges, so "hold still" always means the code is in the zone.
 const AIM_X = 0.5;
 const AIM_Y = 0.24;
+const NEAR_OUT = 1.3; // "near" starts when a hidden code is on screen and ends once it's this far out
 const REVEAL_S = 1.6;
 const COLLECT_S = 1.25;
 const BURST = 120;
@@ -244,7 +247,14 @@ export async function createArStage(
   const go = (p: ArPhase) => {
     phase = p;
     t0 = now;
+    if (p !== "searching") setNear(false);
     ev.onPhase(p, active?.station ?? null);
+  };
+  let near = false;
+  const setNear = (next: boolean) => {
+    if (next === near) return;
+    near = next;
+    ev.onNear?.(near);
   };
 
   const heading = () => {
@@ -512,8 +522,10 @@ export async function createArStage(
     const pe = now - t0;
     if (phase === "searching") {
       guide();
-      // Is a hidden code held inside the scan frame?
+      // Is a hidden code held inside the scan frame? Or at least on screen (near)?
       let aimed: Hidden | null = null;
+      let close = false;
+      const reach = near ? NEAR_OUT : 1;
       for (const c of codes) {
         if (c.got) continue;
         v.copy(c.spot.position).applyMatrix4(cam.matrixWorldInverse);
@@ -521,7 +533,9 @@ export async function createArStage(
         // A faint shimmer gives it away once it's on screen
         c.shimmer.visible = v.z < 0 && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1;
         if (v.z < 0 && Math.abs(ndc.x) < AIM_X && Math.abs(ndc.y) < AIM_Y) aimed = c;
+        if (v.z < 0 && Math.abs(ndc.x) < reach && Math.abs(ndc.y) < reach) close = true;
       }
+      setNear(close);
       shimmerMat.opacity = 0.25 + 0.25 * Math.sin(now * 9);
       aimFor = aimed ? aimFor + dt : 0;
       if (aimed && aimFor > AIM_S) {

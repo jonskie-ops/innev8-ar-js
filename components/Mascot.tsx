@@ -19,6 +19,8 @@ export type Line = { text: string; audio?: string };
  */
 const TALK = { src: "/assets/img/mascot/talk.webp", cols: 6, frames: 36, w: 320, h: 340, fps: 15 };
 const REST = new Set([0, 1, 2, 3, 4, 17, 18, 19, 20, 26]);
+/** Sniffing (the scanner, while he searches): a 2 s loop, cut to the same frame as TALK. */
+const SNIFF = { src: "/assets/img/mascot/sniff.webp", cols: 6, frames: 30, w: 240, h: 255, fps: 15 };
 const IDLE = "/assets/img/mascot/idle.webp"; // frame 0 on its own: shown until the sprite is ready
 const CPS = 34; // typing speed, characters per second
 const LOAD_WAIT_MS = 4000; // after the splash, wait at most this long for the sprite
@@ -103,13 +105,29 @@ function tourTalk(stop: TourStop, p: Progress, then?: () => void): Talk {
     ],
   }[stop];
   const toured = new Set([...(p.tour ?? []), stop]);
-  if (stop !== "scan" && TOUR_STOPS.every((s) => toured.has(s)))
-    lines.push({ text: `That's the whole tour, ${name}. Happy hunting!` });
+  if (TOUR_STOPS.every((s) => toured.has(s))) {
+    const outro = { text: `That's the whole tour, ${name}! Need me again? Tap me down in the corner.` };
+    if (stop === "scan") lines.splice(lines.length - 1, 0, outro);
+    else lines.push(outro);
+  }
   return { lines, guideNext: false, then };
 }
 
+/** When the player taps the corner Qufoo: what this page is for. */
+function helpTalk(page: TourStop, p: Progress): Talk {
+  if (page !== "map") return { ...tourTalk(page, { ...p, tour: [] }), guideNext: false };
+  return {
+    lines: [
+      { text: "This is the Map of the venue. Each number marks where a QR code is hiding: tap one to read its clue." },
+      { text: "Pinch or use the + and − buttons to zoom in, and drag to look around." },
+      { text: "When you're ready, tap Scan and look around with your camera." },
+    ],
+    guideNext: false,
+  };
+}
+
 // ---- The game asks him to explain a menu button
-let onExplain: ((stop: TourStop, then?: () => void) => boolean) | null = null;
+let onExplain: ((stop: TourStop, then?: () => void, help?: boolean) => boolean) | null = null;
 /**
  * The game calls this when a new player taps a menu button Qufoo hasn't explained yet. He explains
  * it, then `then` runs (for Scan: the scanner opens, still within the tap). If he can't (he's
@@ -118,6 +136,24 @@ let onExplain: ((stop: TourStop, then?: () => void) => boolean) | null = null;
 export function explainMenu(stop: TourStop, then?: () => void) {
   if (!onExplain?.(stop, then)) then?.();
 }
+
+// ---- While the big Qufoo is on screen, the corner one steps away
+let busy = false;
+const busyListeners = new Set<() => void>();
+function setBusy(next: boolean) {
+  if (busy === next) return;
+  busy = next;
+  busyListeners.forEach((l) => l());
+}
+const useBusy = () =>
+  useSyncExternalStore(
+    (l) => {
+      busyListeners.add(l);
+      return () => busyListeners.delete(l);
+    },
+    () => busy,
+    () => false,
+  );
 
 /** What he says on each sign-up step (components/game/Onboarding.tsx). */
 export const signUpGuide = (step: number, name: string) =>
@@ -145,27 +181,27 @@ const useIntroOver = () =>
     () => false,
   );
 
-// ---- Shared by both: the sprite (fetched once), the talking dog, the typing
-let spriteLoad: Promise<HTMLImageElement> | null = null;
-function useSprite(enabled: boolean) {
+// ---- Shared: the sprites (each fetched once), the talking dog, the typing
+const spriteLoads = new Map<string, Promise<HTMLImageElement>>();
+function useSprite(enabled: boolean, src = TALK.src) {
   const [sprite, setSprite] = useState<HTMLImageElement | null>(null);
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    if (!spriteLoad) {
+    let load = spriteLoads.get(src);
+    if (!load) {
       const img = new Image();
-      img.src = TALK.src;
-      spriteLoad = img.decode().then(() => img);
+      img.src = src;
+      load = img.decode().then(() => img);
+      spriteLoads.set(src, load);
     }
-    spriteLoad
+    load
       .then((img) => alive && setSprite(img))
-      .catch(() => {
-        spriteLoad = null; // try again next time
-      });
+      .catch(() => spriteLoads.delete(src)); // try again next time
     return () => {
       alive = false;
     };
-  }, [enabled]);
+  }, [enabled, src]);
   return sprite;
 }
 
@@ -311,9 +347,9 @@ export function Mascot({ screen }: { screen: Screen }) {
 
   // The game asks him to explain a menu button (with the latest stage and progress, every render)
   useEffect(() => {
-    onExplain = (stop, then) => {
+    onExplain = (stop, then, help) => {
       if (stage === "in" || stage === "on") return false;
-      setTalk(tourTalk(stop, progressNow, then));
+      setTalk(help ? helpTalk(stop, progressNow) : tourTalk(stop, progressNow, then));
       setIndex(0);
       setStage("in");
       progress.toured(stop);
@@ -323,6 +359,10 @@ export function Mascot({ screen }: { screen: Screen }) {
       onExplain = null;
     };
   });
+
+  useEffect(() => {
+    setBusy(stage === "in" || stage === "on" || stage === "out");
+  }, [stage]);
 
   useEffect(() => {
     if (stage !== "in") return;
@@ -453,6 +493,118 @@ export function QufooGuide({ text }: { text: string }) {
       </div>
       <div className="qguide__dog" aria-hidden="true">
         <QufooDog sprite={sprite} talking={!reduced && !done} />
+      </div>
+    </div>
+  );
+}
+
+/** Dock frames: his mouth stays shut while his head moves a little, back and forth. */
+const DOCK_FRAMES = [0, 1, 2, 3, 4, 3, 2, 1];
+const DOCK_FPS = 7;
+const DOCK_W = 240; // drawn at ~3x the 84 px he's shown at, sharp on any phone
+const DOCK_H = 255;
+
+/**
+ * Small Qufoo waiting just above the menu, moving gently. Tap him and he comes up to explain the
+ * page you're on. He steps away while the big Qufoo talks, and when `hidden` (e.g. a QR code's card
+ * is open on the map).
+ */
+export function QufooDock({ page, hidden = false }: { page: TourStop; hidden?: boolean }) {
+  const talking = useBusy();
+  const reduced = useReducedMotion();
+  const sprite = useSprite(true);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const away = talking || hidden;
+
+  useEffect(() => {
+    const ctx = canvasRef.current?.getContext("2d");
+    if (!ctx || !sprite) return;
+    let k = 0;
+    const draw = () => {
+      const i = DOCK_FRAMES[k];
+      ctx.clearRect(0, 0, DOCK_W, DOCK_H);
+      ctx.drawImage(sprite, (i % TALK.cols) * TALK.w, Math.floor(i / TALK.cols) * TALK.h, TALK.w, TALK.h, 0, 0, DOCK_W, DOCK_H);
+    };
+    draw();
+    if (reduced || away) return;
+    const id = window.setInterval(() => {
+      k = (k + 1) % DOCK_FRAMES.length;
+      draw();
+    }, 1000 / DOCK_FPS);
+    return () => clearInterval(id);
+  }, [sprite, reduced, away]);
+
+  return (
+    <button
+      type="button"
+      className={away ? "qdock is-away" : "qdock"}
+      aria-label={`Ask ${MASCOT} about this page`}
+      aria-hidden={away || undefined}
+      tabIndex={away ? -1 : 0}
+      onClick={() => onExplain?.(page, undefined, true)}
+    >
+      <span className="qdock__body">
+        {sprite ? (
+          <canvas ref={canvasRef} width={DOCK_W} height={DOCK_H} />
+        ) : (
+          <img src={IDLE} alt="" width={DOCK_W} height={DOCK_H} />
+        )}
+      </span>
+      <span className="qdock__ask" aria-hidden="true">
+        ?
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Qufoo in the scanner: he sniffs while you search, and talks (`say`) once a hidden code is near,
+ * and as you find and collect it. Decorative: taps go through him to the AR view.
+ */
+export function ScanQufoo({ say }: { say: string | null }) {
+  const reduced = useReducedMotion();
+  const sniffSprite = useSprite(true, SNIFF.src);
+  const talkSprite = useSprite(true);
+  const sniffRef = useRef<HTMLCanvasElement>(null);
+  const talking = say !== null;
+  const { typed, done } = useTyping(say ?? "", talking, reduced);
+
+  // Sniffing, on a loop, while he isn't talking
+  useEffect(() => {
+    const ctx = sniffRef.current?.getContext("2d");
+    if (!ctx || !sniffSprite) return;
+    let k = 0;
+    const draw = () => {
+      ctx.clearRect(0, 0, SNIFF.w, SNIFF.h);
+      ctx.drawImage(sniffSprite, (k % SNIFF.cols) * SNIFF.w, Math.floor(k / SNIFF.cols) * SNIFF.h, SNIFF.w, SNIFF.h, 0, 0, SNIFF.w, SNIFF.h);
+    };
+    draw();
+    if (reduced || talking) return;
+    const id = window.setInterval(() => {
+      k = (k + 1) % SNIFF.frames;
+      draw();
+    }, 1000 / SNIFF.fps);
+    return () => clearInterval(id);
+  }, [sniffSprite, reduced, talking]);
+
+  return (
+    <div className={talking ? "scanq is-talking" : "scanq"} aria-hidden="true">
+      {say !== null && (
+        <div className="scanq__bubble" key={say}>
+          <span className="qufoo-name">{MASCOT}</span>
+          <p className="scanq__text">
+            {say.slice(0, typed)}
+            <span className="qufoo-unsaid">{say.slice(typed)}</span>
+          </p>
+        </div>
+      )}
+      <div className="scanq__dog">
+        <span className="scanq__sniff">
+          {sniffSprite ? <canvas ref={sniffRef} width={SNIFF.w} height={SNIFF.h} /> : <img src={IDLE} alt="" />}
+        </span>
+        <span className="scanq__talk">
+          <QufooDog sprite={talkSprite} talking={!reduced && talking && !done} />
+        </span>
       </div>
     </div>
   );

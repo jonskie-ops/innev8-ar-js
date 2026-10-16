@@ -690,6 +690,159 @@ p {
   width: 100%;
   height: 100%;
 }
+/* Small Qufoo waiting above the menu's right end, moving gently; tap him for help with the page */
+.qdock {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 6px);
+  width: 84px;
+  height: 89px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    opacity 0.25s,
+    visibility 0s;
+  animation: qguide-rise 0.6s var(--ease-out) 1.2s both;
+}
+.qdock.is-away {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.25s,
+    visibility 0s 0.25s;
+}
+.qdock__body {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 100%;
+  animation: qdock-float 3.4s ease-in-out infinite;
+  -webkit-mask-image: linear-gradient(to top, transparent 0, #000 30%), linear-gradient(to left, transparent 0, #000 12%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to top, transparent 0, #000 30%), linear-gradient(to left, transparent 0, #000 12%);
+  mask-composite: intersect;
+}
+.qdock canvas,
+.qdock img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* a little "?" speech bubble: tap me */
+.qdock__ask {
+  position: absolute;
+  top: 0;
+  left: -2px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 3px;
+  background: linear-gradient(135deg, var(--royal), var(--cyan));
+  box-shadow: 0 0 10px rgba(18, 191, 234, 0.6);
+  color: #fff;
+  font: 800 12.5px/1 var(--font-h);
+  animation: qdock-ask 3.4s ease-in-out infinite;
+}
+.qdock:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+@keyframes qdock-float {
+  50% {
+    transform: translateY(-3px) rotate(-1.5deg);
+  }
+}
+@keyframes qdock-ask {
+  0%,
+  70%,
+  100% {
+    transform: none;
+  }
+  80% {
+    transform: translateY(-3px) scale(1.12);
+  }
+  90% {
+    transform: none;
+  }
+}
+/* Qufoo in the scanner: bottom right, between the scan frame and the hint. He sniffs while you
+   search and talks once a code is near. Taps go through him to the AR view. */
+.scanq {
+  position: absolute;
+  right: 8px;
+  bottom: calc(max(22px, env(safe-area-inset-bottom)) + 64px);
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  max-width: calc(100% - 16px);
+  pointer-events: none;
+  animation: qguide-rise 0.6s var(--ease-out) 0.4s both;
+}
+.scanq__dog {
+  position: relative;
+  flex: none;
+  width: 84px;
+  height: 89px;
+  /* his cut-off bottom, and the frame's edges at both sides, fade out */
+  -webkit-mask-image: linear-gradient(to top, transparent 0, #000 30%), linear-gradient(to left, transparent 0, #000 12%),
+    linear-gradient(to right, transparent 0, #000 8%);
+  -webkit-mask-composite: source-in, source-in;
+  mask-image: linear-gradient(to top, transparent 0, #000 30%), linear-gradient(to left, transparent 0, #000 12%),
+    linear-gradient(to right, transparent 0, #000 8%);
+  mask-composite: intersect;
+}
+.scanq__sniff,
+.scanq__talk {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.18s;
+}
+.scanq__talk,
+.scanq.is-talking .scanq__sniff {
+  opacity: 0;
+}
+.scanq.is-talking .scanq__talk {
+  opacity: 1;
+}
+.scanq canvas,
+.scanq img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.scanq__bubble {
+  position: relative;
+  max-width: 240px;
+  margin-bottom: 30px;
+  padding: 15px 14px 11px;
+  border: 1px solid rgba(18, 191, 234, 0.45);
+  border-radius: 16px;
+  background: rgba(var(--deep-rgb), 0.92);
+  animation: host-pop 0.3s var(--ease-out) both;
+}
+.scanq__bubble::after {
+  content: "";
+  position: absolute;
+  right: -7px;
+  bottom: 16px;
+  width: 12px;
+  height: 12px;
+  border: solid rgba(18, 191, 234, 0.45);
+  border-width: 1px 1px 0 0;
+  background: rgb(var(--deep-rgb));
+  transform: rotate(45deg);
+}
+.scanq__text {
+  margin: 0;
+  font: 400 13.5px/1.45 var(--font-b);
+  color: var(--text);
+}
 @keyframes qguide-rise {
   from {
     opacity: 0;

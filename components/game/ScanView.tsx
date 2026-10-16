@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { pad2 } from "@/lib/dom";
 import { STATIONS, TOTAL, type Station } from "@/lib/hunt";
 import { TEST_MODE } from "@/lib/site";
+import { ScanQufoo } from "../Mascot";
 import type { ArPhase, ArStage, CamState, Guide } from "./ar/stage";
 import { ArrowRightIcon, CameraOffIcon, CloseIcon } from "./icons";
 
@@ -58,6 +59,7 @@ export function ScanView({
   const [guide, setGuide] = useState<Guide | null>(null);
   const [failed, setFailed] = useState(false);
   const [xr, setXr] = useState<"on" | "offer" | null>(null);
+  const [near, setNear] = useState(false); // a hidden code is on screen
 
   // The latest callbacks, for the AR stage that's set up once
   const live = useRef({ onCatch, onClose });
@@ -79,6 +81,7 @@ export function ScanView({
           onGuide: setGuide,
           onCollect: (st) => live.current.onCatch(st),
           onXr: setXr,
+          onNear: setNear,
           onEnd: () => live.current.onClose(), // e.g. the phone's back button during AR
         }),
       )
@@ -131,6 +134,21 @@ export function ScanView({
   else if (phase === "done") hint = `You've found all ${TOTAL} QR codes!`;
 
   const camMessage = cam && xr !== "on" ? CAM_MESSAGE[cam] : undefined;
+  // Qufoo sniffs while you search, and speaks up once a code is near
+  const qufooSays =
+    phase === "searching"
+      ? near
+        ? "Sniff sniff… I smell a QR code! It's close: move slowly and hold your phone steady."
+        : null
+      : phase === "found"
+        ? "There it is!"
+        : phase === "ready"
+          ? "Tap it to collect it!"
+          : phase === "collecting"
+            ? "Got it! Good job!"
+            : phase === "done"
+              ? `You found all ${TOTAL}! Amazing!`
+              : null;
   // Test aid: how this phone follows the player's movement
   const tracking =
     xr === "on" ? "WebXR tracking" : cam === "on" ? "Camera tracking" : cam && cam !== "starting" ? "No camera" : null;
@@ -193,6 +211,8 @@ export function ScanView({
           <ArrowRightIcon />
         </span>
       )}
+
+      {!failed && phase !== "loading" && <ScanQufoo say={qufooSays} />}
 
       <div className="scan__bottom">
         <p className="scan__hint" aria-live="polite">

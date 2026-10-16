@@ -71,11 +71,18 @@ opens the scanner.
   is explained once (saved with the profile; Delete Profile starts the tour over). Players who
   signed up before the tour existed don't get it.
 - **Returning players:** welcome back, and how many codes they've found.
+- **Help any time:** a small Qufoo waits above the menu's right end, moving gently; tap him and he
+  explains the page you're on. He steps away while the big Qufoo talks and while a QR code's card
+  is open on the map.
+- **In the scanner:** a small Qufoo in the bottom corner sniffs (`sniff.webp`) while you search,
+  and talks once a hidden code comes on screen ("I smell a QR code!"), then as you find and collect
+  it. Decorative: taps go through him to the AR view.
 - **Animation:** `public/assets/img/mascot/talk.webp` is a 2.4 s talking loop cut out of the
   original GIF (36 frames as a sprite sheet, 516 KB instead of the GIF's 10.9 MB), drawn on a
   canvas so he can stop on a closed mouth when he's quiet; `idle.webp` is its first frame.
-  To rebuild them from a new GIF on a white background: `node scripts/mascot.mjs <file.gif>`
-  (uses `sharp`, which comes with Next.js), then copy the two numbers it prints into `Mascot.tsx`.
+  `sniff.webp` is a 2 s sniffing loop, cut the same way. To rebuild them from new GIFs on a white
+  background: `node scripts/mascot.mjs <talking.gif>` and `node scripts/mascot.mjs <sniffing.gif> sniff`
+  (uses `sharp`, which comes with Next.js), then copy the numbers they print into `Mascot.tsx`.
 - **Voice:** give a line an `audio` URL in `introTalk()` / `welcomeTalk()` (e.g.
   `{ text: "...", audio: "/assets/voice/hello.mp3" }`) and he talks for as long as the clip plays
   (the sign-up guide's lines in `signUpGuide()` are text only for now). Phones block sound until the first tap, so if the
