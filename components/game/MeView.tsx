@@ -7,7 +7,17 @@ import { PROVINCES, TEST_MODE } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
 import { I8Mark } from "./I8Mark";
-import { ArrowRightIcon, CalendarIcon, ChevronDownIcon, ClockIcon, DexIcon, InfoIcon, PinIcon, TrashIcon } from "./icons";
+import {
+  ArrowRightIcon,
+  CalendarIcon,
+  ChevronDownIcon,
+  ClockIcon,
+  DexIcon,
+  InfoIcon,
+  PencilIcon,
+  PinIcon,
+  TrashIcon,
+} from "./icons";
 import { MiniClock } from "./MiniClock";
 import { QrTile } from "./QrTile";
 
@@ -16,8 +26,8 @@ const timeFmt = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric
 /**
  * My Profile: a summit cover (bridge photo, event title, INNEV8 mark), then a sheet with the player's
  * avatar, name, province and stats, an About section that turns into the edit form, a strip of their
- * QR codes, the side countdown before the event, and Delete Profile, which wipes the player from this
- * device and starts the app over from the splash (asks first).
+ * QR codes and the side countdown before the event. Beside the avatar: edit (opens the form) and
+ * delete, which wipes the player from this device and starts the app over from the splash (asks first).
  */
 export function MeView({
   name,
@@ -38,7 +48,7 @@ export function MeView({
 }) {
   const [aboutOpen, setAboutOpen] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [confirming, setConfirming] = useState(false); // the delete button by the avatar asks first
   const [draftName, setDraftName] = useState(name);
   const [draftProvince, setDraftProvince] = useState(province);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -63,6 +73,20 @@ export function MeView({
     setEditing(true);
   };
   const canSave = draftName.trim() !== "";
+  const wipe = () => {
+    progress.clear();
+    location.replace("/"); // a fresh start: splash, mascot, sign-up
+  };
+  const lost = count ? `your ${count} QR code${count > 1 ? "s" : ""}` : "progress";
+
+  useEffect(() => {
+    if (!confirming) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setConfirming(false);
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, [confirming]);
 
   return (
     <div className="me">
@@ -115,10 +139,19 @@ export function MeView({
           <span className="avatar psheet__avatar" aria-hidden="true">
             {(name || "?").charAt(0).toUpperCase()}
           </span>
-          <p className="psheet__pill">Collect all {TOTAL} INNEV8 QR codes to win a prize.</p>
-          <button type="button" className="btn btn--ghost btn--sm psheet__edit" onClick={startEdit}>
-            Edit Profile
-          </button>
+          <div className="psheet__actions">
+            <button type="button" className="icon-btn psheet__act" onClick={startEdit} aria-label="Edit profile">
+              <PencilIcon />
+            </button>
+            <button
+              type="button"
+              className="icon-btn psheet__act psheet__act--danger"
+              onClick={() => setConfirming(true)}
+              aria-label="Delete profile"
+            >
+              <TrashIcon />
+            </button>
+          </div>
         </div>
 
         <h1 className="psheet__name">{name}</h1>
@@ -271,49 +304,36 @@ export function MeView({
             </div>
           </section>
         )}
+      </div>
 
-        <section className="psec">
-          <button
-            type="button"
-            className="psec__head"
-            aria-expanded={deleting}
-            aria-controls="me-delete"
-            onClick={() => setDeleting(!deleting)}
-          >
-            <span className="psec__icon psec__icon--danger">
+      {confirming && (
+        <div
+          className="modal"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="pconfirm-title"
+          aria-describedby="pconfirm-text"
+        >
+          <div className="pconfirm">
+            <span className="psec__icon psec__icon--danger pconfirm__icon">
               <TrashIcon />
             </span>
-            <span className="psec__title">Delete Profile</span>
-            <span className="psec__chev">
-              <ChevronDownIcon />
-            </span>
-          </button>
-          {deleting && (
-            <div id="me-delete" className="psec__body">
-              <p className="pdelete__text">
-                This erases your name, province and{" "}
-                {count ? `your ${count} QR code${count > 1 ? "s" : ""}` : "progress"} from this phone, and the hunt
-                starts over from the beginning.
-              </p>
-              <div className="pedit__actions">
-                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDeleting(false)}>
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--danger btn--sm"
-                  onClick={() => {
-                    progress.clear();
-                    location.replace("/"); // a fresh start: splash, mascot, sign-up
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
+            <h2 id="pconfirm-title">Delete your profile?</h2>
+            <p id="pconfirm-text" className="pdelete__text">
+              This erases your name, province and {lost} from this phone, and the hunt starts over from the
+              beginning.
+            </p>
+            <div className="pedit__actions">
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setConfirming(false)} autoFocus>
+                Cancel
+              </button>
+              <button type="button" className="btn btn--danger btn--sm" onClick={wipe}>
+                Delete
+              </button>
             </div>
-          )}
-        </section>
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,13 +8,14 @@ import { QrTile } from "./QrTile";
 export function CatchCard({
   station,
   count,
-  onClose,
+  onHunt,
   onDex,
   onPrize,
 }: {
   station: Station;
   count: number;
-  onClose: () => void;
+  /** Keep hunting: back to scanning. */
+  onHunt: () => void;
   onDex: () => void;
   onPrize: () => void;
 }) {
@@ -49,7 +50,7 @@ export function CatchCard({
               Claim your prize
             </button>
           ) : (
-            <button type="button" className="btn btn--primary" onClick={onClose}>
+            <button type="button" className="btn btn--primary" onClick={onHunt}>
               Keep hunting
             </button>
           )}

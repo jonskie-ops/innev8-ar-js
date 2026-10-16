@@ -259,7 +259,7 @@ code {
   position: relative;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 20px 16px 116px; /* the end of a page scrolls clear of the corner Qufoo */
+  padding: 20px 16px 24px;
 }
 /* The Map tab is a full-bleed map, not a scrolling page. */
 .game__body--map {
@@ -1462,7 +1462,7 @@ code {
   }
 }
 
-/* The sheet: avatar overlapping the cover, intro pill, Edit Profile, name, stats, sections */
+/* The sheet: avatar overlapping the cover, edit and delete buttons, name, stats, sections */
 .psheet {
   position: relative;
   z-index: 1;
@@ -1476,9 +1476,7 @@ code {
 .psheet__top {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  grid-template-areas:
-    "avatar pill"
-    "avatar edit";
+  grid-template-areas: "avatar actions";
   column-gap: 12px;
   align-items: start;
 }
@@ -1493,23 +1491,73 @@ code {
     0 0 0 7px rgba(18, 191, 234, 0.45),
     0 0 26px rgba(18, 191, 234, 0.45);
 }
-.psheet__pill {
-  grid-area: pill;
+/* Edit and delete, beside the avatar */
+.psheet__actions {
+  grid-area: actions;
   justify-self: end;
-  max-width: 230px;
-  margin: -20px -16px 0 0;
-  padding: 9px 16px;
-  border-radius: 16px 0 0 16px;
-  background: linear-gradient(100deg, #0a52c4, var(--royal) 60%, #0b8fd8);
-  box-shadow: 0 8px 22px rgba(8, 123, 232, 0.35);
-  font: 600 11px/1.4 var(--font-h);
-  color: #fff;
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
 }
-.psheet__edit {
-  grid-area: edit;
-  justify-self: end;
-  margin-top: 10px;
-  border-radius: 999px;
+.psheet__act {
+  width: 42px;
+  height: 42px;
+  border-color: rgba(18, 191, 234, 0.45);
+  color: var(--cyan);
+  cursor: pointer;
+  transition:
+    background-color 0.2s,
+    transform 0.15s;
+}
+.psheet__act:active {
+  transform: scale(0.94);
+}
+.psheet__act--danger {
+  border-color: rgba(255, 107, 107, 0.5);
+  color: #ff6b6b;
+}
+.psheet__act:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .psheet__act:hover {
+    background: rgba(18, 191, 234, 0.14);
+  }
+  .psheet__act--danger:hover {
+    background: rgba(255, 107, 107, 0.14);
+  }
+}
+/* Delete your profile? (from the button by the avatar) */
+.pconfirm {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(340px, 100%);
+  padding: 24px 22px 20px;
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  border-radius: 22px;
+  background: rgba(var(--shade-rgb), 0.97);
+  box-shadow: 0 30px 80px -20px rgba(255, 107, 107, 0.45);
+  text-align: center;
+  animation: pop-in 0.4s var(--ease-out);
+}
+.pconfirm h2 {
+  margin: 0;
+  font: 800 19px/1.2 var(--font-h);
+}
+.pconfirm__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+}
+.pconfirm__icon svg {
+  width: 20px;
+  height: 20px;
+}
+.pconfirm .pedit__actions {
+  justify-content: center;
+  width: 100%;
 }
 .psheet__name {
   margin: 12px 0 0;

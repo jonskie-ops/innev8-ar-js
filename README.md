@@ -72,12 +72,13 @@ opens the scanner.
   says what to do on each step (name, province, Let's Go). Then he tours the menu: right after
   sign-up he explains the hunt and the Map, and the first time each menu button is tapped (Codes,
   Quests, Me, Scan) he explains what's there; for Scan, the scanner opens when he's done. Each part
-  is explained once (saved with the profile; Delete Profile starts the tour over). Players who
+  is explained once (saved with the profile; deleting the profile starts the tour over). Players who
   signed up before the tour existed don't get it.
 - **Returning players:** welcome back, and how many codes they've found.
 - **Help any time:** a small Qufoo waits above the menu's right end, moving gently; tap him and he
-  explains the page you're on. He steps away while the big Qufoo talks and while a QR code's card
-  is open on the map.
+  explains the page you're on. He steps away while the big Qufoo talks, while a QR code's card
+  is open on the map, and when you scroll to the end of a page (so he never covers its last
+  button); scroll back up and he's there again.
 - **In the scanner:** a small Qufoo in the bottom corner sniffs (`sniff.webp`) while you search,
   and talks once a hidden code comes on screen ("I smell a QR code!"), then as you find and collect
   it. Decorative: taps go through him to the AR view.

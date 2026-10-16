@@ -96,7 +96,7 @@ function tourTalk(stop: TourStop, p: Progress, then?: () => void): Talk {
     ],
     me: [
       { text: "This is your profile: your points, your QR codes and your details." },
-      { text: "Tap Edit Profile any time to change your name or province." },
+      { text: "Tap the pencil by your photo to change your name or province. The bin deletes your profile." },
     ],
     scan: [
       { text: "Scan opens your camera. The QR codes are hidden around the venue, and only your camera can see them." },
@@ -506,15 +506,51 @@ const DOCK_H = 255;
 
 /**
  * Small Qufoo waiting just above the menu, moving gently. Tap him and he comes up to explain the
- * page you're on. He steps away while the big Qufoo talks, and when `hidden` (e.g. a QR code's card
- * is open on the map).
+ * page you're on. He steps away while the big Qufoo talks, when `hidden` (e.g. a QR code's card is
+ * open on the map), and while the end of a scrolling page (`scroller`) is under him, so the last
+ * thing on it (like the prize button) is never covered.
  */
-export function QufooDock({ page, hidden = false }: { page: TourStop; hidden?: boolean }) {
+export function QufooDock({
+  page,
+  hidden = false,
+  scroller,
+}: {
+  page: TourStop;
+  hidden?: boolean;
+  scroller?: React.RefObject<HTMLElement | null>;
+}) {
   const talking = useBusy();
   const reduced = useReducedMotion();
   const sprite = useSprite(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const away = talking || hidden;
+  const dockRef = useRef<HTMLButtonElement>(null);
+  const [atEnd, setAtEnd] = useState(false);
+  const away = talking || hidden || atEnd;
+
+  // The end of the page's content is in his spot: step aside (he's back once you scroll up)
+  useEffect(() => {
+    const el = scroller?.current;
+    const content = el?.lastElementChild;
+    const dock = dockRef.current;
+    if (!el || !content || !dock || page === "map") {
+      setAtEnd(false); // the map has no page end
+      return;
+    }
+    // Only a page that scrolls: there, scrolling back up brings him back
+    const check = () => {
+      const end = content.getBoundingClientRect().bottom;
+      const spot = dock.getBoundingClientRect();
+      setAtEnd(el.scrollHeight > el.clientHeight && end > spot.top + 4 && end < spot.bottom + 40);
+    };
+    const watch = new ResizeObserver(check);
+    watch.observe(el);
+    watch.observe(content);
+    el.addEventListener("scroll", check, { passive: true });
+    return () => {
+      watch.disconnect();
+      el.removeEventListener("scroll", check);
+    };
+  }, [scroller, page]);
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext("2d");
@@ -536,6 +572,7 @@ export function QufooDock({ page, hidden = false }: { page: TourStop; hidden?: b
 
   return (
     <button
+      ref={dockRef}
       type="button"
       className={away ? "qdock is-away" : "qdock"}
       aria-label={`Ask ${MASCOT} about this page`}

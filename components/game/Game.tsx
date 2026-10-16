@@ -52,6 +52,7 @@ export function Game({ phase }: { phase: Phase }) {
   const [toast, showToast] = useToast();
   // A code opened from a link (/?s=<code>), waiting for onboarding.
   const [pending, setPending] = useState<Station | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   // Sign-up needs both steps; older saves have a name but no province yet.
   const signedUp = p.onboarded && p.province !== "";
@@ -137,7 +138,7 @@ export function Game({ phase }: { phase: Phase }) {
         {TEST_MODE && <span className="hud__test">Test mode</span>}
       </header>
 
-      <div className={tab === "map" ? "game__body game__body--map" : "game__body"}>
+      <div ref={bodyRef} className={tab === "map" ? "game__body game__body--map" : "game__body"}>
         {tab === "map" && (
           <MapView found={p.found} focus={focus} onFocus={setFocus} onScan={openScan} />
         )}
@@ -190,7 +191,7 @@ export function Game({ phase }: { phase: Phase }) {
           <TabButton key={t.id} tab={t} active={tab === t.id} onSelect={selectTab} />
         ))}
         {/* Qufoo waits above the menu's right end; tap him for help with this page */}
-        <QufooDock page={tab} hidden={tab === "map" && focus !== null} />
+        <QufooDock page={tab} hidden={tab === "map" && focus !== null} scroller={bodyRef} />
       </nav>
 
       {scan && <ScanView target={scan.target} found={p.found} onCatch={onCatch} onClose={closeScan} />}
@@ -199,7 +200,10 @@ export function Game({ phase }: { phase: Phase }) {
         <CatchCard
           station={caught}
           count={count}
-          onClose={() => setCaught(null)}
+          onHunt={() => {
+            setCaught(null);
+            openScan();
+          }}
           onDex={() => {
             setCaught(null);
             setTab("dex");
