@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { Station } from "@/lib/hunt";
+import { createZoomTracker } from "./flow";
 import { buildQr3d, RARITY_HEX, type Qr3d } from "./qr3d";
 
 export type CamState = "starting" | "on" | "denied" | "unavailable" | "insecure";
@@ -43,6 +44,10 @@ const SIZE = 1.05; // code scale: about 1.3 units across, most of a phone screen
 // panel 2 m away, so it grows as you walk up to it and shrinks as you back away.
 const XR_DIST = 2;
 const XR_SIZE = 0.5;
+// Without WebXR, walking is read from the camera feed (./flow) and moves the virtual camera.
+const NEAR = 0.9; // the closest you can get to a code
+const ROAM = 10; // how far you can wander from where the scanner opened
+const STEP_MAX = 0.35; // the most the camera moves in one frame
 const AIM_S = 0.45; // hold a code in the frame this long to reveal it
 // The reveal zone, in screen units (-1…1 across): about the inside of the scan frame. The arrows use
 // the same edges, so "hold still" always means the code is in the zone.
@@ -74,9 +79,10 @@ type Hidden = { station: Station; qr: Qr3d; spot: THREE.Group; sway: THREE.Group
  * The scanner's AR layer. On phones with WebXR AR (Android Chrome with ARCore) the phone's movement is
  * tracked, so the hidden codes are fixed in the room: walk away and they shrink, walk up and they grow.
  * Elsewhere they sit at fixed directions around the player; motion sensors keep them put as the phone
- * turns (like Pokémon GO's AR), otherwise drag to look. Each is invisible until the camera is held on
- * its spot, then it assembles into a 3D QR code, and a tap collects it. Drawn over the camera feed, or
- * on a plain dark background when there's no camera.
+ * turns (like Pokémon GO's AR), otherwise drag to look. Walking is read from the camera picture: as
+ * it zooms out (backing away) the codes shrink with the room, as it zooms in they grow.
+ * Each is invisible until the camera is held on its spot, then it assembles into a 3D QR code, and a
+ * tap collects it. Drawn over the camera feed, or on a plain dark background when there's no camera.
  * There's no set order: whichever code is revealed and tapped first is the one collected. `target` is
  * the code the player chose to look for, if any; the guide points to it, but it's hidden like the rest.
  */
@@ -307,6 +313,7 @@ export async function createArStage(
   // ---- Camera feed
   let stream: MediaStream | undefined;
   let camOn = false;
+  const zoom = createZoomTracker(renderer, video);
   let disposed = false;
   const startCamera = async () => {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
@@ -333,9 +340,10 @@ export async function createArStage(
 
   const stopCamera = () => {
     camOn = false;
+    zoom.reset();
     stream?.getTracks().forEach((t) => t.stop());
+    if (video.srcObject === stream) video.srcObject = null;
     stream = undefined;
-    video.srcObject = null;
   };
 
   // ---- Sizing
@@ -436,6 +444,30 @@ export async function createArStage(
     }
   };
 
+  // Walking without WebXR: the picture zoomed by `s`, so move toward (or away from) what the phone
+  // points at by as much as that takes. Its distance is the code nearest the middle of the screen,
+  // or the usual one, so whatever's on screen shrinks and grows with the room behind it.
+  const ahead = new THREE.Vector3();
+  const walk = (s: number) => {
+    ahead.set(0, 0, -1).applyQuaternion(cam.quaternion).setY(0);
+    if (ahead.lengthSq() < 0.09) return; // pointing at the floor or the ceiling: no way to tell
+    ahead.normalize();
+    let depth = DIST;
+    let best = Infinity;
+    for (const c of codes) {
+      if (c.got) continue;
+      v.copy(c.spot.position).applyMatrix4(cam.matrixWorldInverse);
+      ndc.copy(c.spot.position).project(cam);
+      const off = Math.hypot(ndc.x, ndc.y);
+      if (v.z < 0 && off < 1 && off < best) {
+        best = off;
+        depth = -v.z;
+      }
+    }
+    const d = Math.min(THREE.MathUtils.clamp(depth * (1 - 1 / s), -STEP_MAX, STEP_MAX), depth - NEAR);
+    cam.position.addScaledVector(ahead, d).clampLength(0, ROAM);
+  };
+
   const tick = (time: number) => {
     const dt = lastTime < 0 ? 0 : Math.min((time - lastTime) / 1000, 0.05);
     lastTime = time;
@@ -469,6 +501,13 @@ export async function createArStage(
       for (const c of codes) c.spot.scale.setScalar(fit);
     }
     cam.updateMatrixWorld();
+    if (!xr && camOn) {
+      const s = zoom.take();
+      if (s !== 1) {
+        walk(s);
+        cam.updateMatrixWorld();
+      }
+    }
 
     const pe = now - t0;
     if (phase === "searching") {
@@ -625,8 +664,9 @@ export async function createArStage(
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       removeEventListener("pointerup", onUp);
+      zoom.dispose();
       stream?.getTracks().forEach((t) => t.stop());
-      video.srcObject = null;
+      if (stream && video.srcObject === stream) video.srcObject = null; // (not another scanner's feed)
       for (const c of codes) c.qr.dispose();
       disposables.forEach((d) => d.dispose());
       renderer.dispose();

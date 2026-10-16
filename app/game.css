@@ -2016,6 +2016,15 @@ button.psec__head {
   justify-content: space-between;
   padding: max(14px, env(safe-area-inset-top)) 16px 0;
 }
+/* Test mode: which movement tracking the scanner is using */
+.chip--mode {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
 .scanner {
   aspect-ratio: 1;
 }

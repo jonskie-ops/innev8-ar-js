@@ -131,6 +131,9 @@ export function ScanView({
   else if (phase === "done") hint = `You've found all ${TOTAL} QR codes!`;
 
   const camMessage = cam && xr !== "on" ? CAM_MESSAGE[cam] : undefined;
+  // Test aid: how this phone follows the player's movement
+  const tracking =
+    xr === "on" ? "WebXR tracking" : cam === "on" ? "Camera tracking" : cam && cam !== "starting" ? "No camera" : null;
 
   return (
     <div
@@ -155,6 +158,7 @@ export function ScanView({
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Close scanner">
           <CloseIcon />
         </button>
+        {TEST_MODE && tracking && <span className="chip chip--mode">{tracking}</span>}
         <span className="chip chip--count">
           <i className="chip__px" aria-hidden="true"></i>
           {count}/{TOTAL}

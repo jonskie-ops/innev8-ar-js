@@ -39,9 +39,12 @@ site is playable now; set it to `false` for the real launch.
    phone's movement. Codes are ~60 cm panels 2 m away, fixed in the room: back away and they shrink,
    walk up and they grow. If the browser needs a fresh tap to start AR, a **Start full AR** button
    appears; the phone's back button ends AR and closes the scanner.
-   **Everywhere else (iPhone, desktop):** the phone's motion sensors keep the codes fixed in the room
-   as the phone turns (like Pokémon GO's AR), but their size doesn't change as you walk (Safari has no
-   WebXR); without sensors, drag to look.
+   **Everywhere else (iPhone, Android phones without ARCore, in-app browsers like Messenger's):** the
+   motion sensors keep the codes fixed in the room as the phone turns (like Pokémon GO's AR; without
+   sensors, drag to look), and walking is read from the camera picture (`ar/flow.ts`): as the room
+   zooms out when you back away, the codes shrink with it, and they grow as you walk up. Steps to the
+   side aren't tracked this way. In test mode, a chip at the top of the scanner says which tracking
+   is running.
 3. Each code is invisible until it's held in the scan frame for half a second, then it assembles from
    glowing blocks into a 3D QR code (`ar/qr3d.ts`, its pattern generated from the code's value).
    Tapping it collects it and the catch card opens. Progress is saved on the device (localStorage).
@@ -53,6 +56,22 @@ signs, or GPS for outdoor spots) is still to be decided.
 The camera only works on a secure page: `https://…` or `http://localhost`. Over plain
 `http://192.168.x.x` the scanner shows a virtual room instead (drag to look). iPhone asks for motion
 access when Scan is tapped.
+
+## The mascot
+
+After the splash, the QR hunting buddy (a talking Dalmatian) rises from the bottom of the screen and
+says a few lines: a welcome for new players, progress for returning ones (`components/Mascot.tsx`).
+Each line types out while he talks; lines move on by themselves or with a tap, and Skip (or Esc)
+sends him away. He stays away when a QR code link opens the scanner.
+
+- **Animation:** `public/assets/img/mascot/talk.webp` is a 2.4 s talking loop cut out of the
+  original GIF (36 frames as a sprite sheet, 516 KB instead of the GIF's 10.9 MB), drawn on a
+  canvas so he can stop on a closed mouth when he's quiet; `idle.webp` is its first frame.
+  To rebuild them from a new GIF on a white background: `node scripts/mascot.mjs <file.gif>`
+  (uses `sharp`, which comes with Next.js), then copy the two numbers it prints into `Mascot.tsx`.
+- **Voice:** give a line an `audio` URL in `linesFor()` (e.g. `{ text: "...", audio: "/assets/voice/hello.mp3" }`)
+  and he talks for as long as the clip plays. Phones block sound until the first tap, so if the
+  splash ended on its own, that line runs as text only.
 
 ## Before the event
 
@@ -70,6 +89,7 @@ access when Scan is tapped.
 | --- | --- |
 | `components/App.tsx` | Countdown gate (production) vs. game |
 | `components/Splash.tsx`, `Emblem.tsx` | INNEV8 splash screen |
+| `components/Mascot.tsx`, `scripts/mascot.mjs` | The talking mascot after the splash; the script that builds its sprite |
 | `components/CountdownSection.tsx`, `Countdown.tsx` | "The countdown is on." section and clock |
 | `components/game/Game.tsx` | Game shell: HUD, tabs, overlays |
 | `components/game/MapView.tsx` | Venue map (home) |

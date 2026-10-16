@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- static SVG logo, nothing for next/image to optimize */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { clamp, prefersReducedMotion } from "@/lib/dom";
 import { pixelWipe } from "@/lib/pixelWipe";
 import { THEME_COLOR } from "@/lib/site";
@@ -9,6 +9,10 @@ import { Emblem } from "./Emblem";
 
 const MIN_MS = 2100; // splash runs at least this long
 const MAX_MS = 3600; // give up waiting for the background photo after this
+
+const SplashDone = createContext(false);
+/** True once the splash is over and its pixels have cleared (straight away with reduced motion). */
+export const useSplashDone = () => useContext(SplashDone);
 
 /**
  * Full-screen INNEV8 splash over `children`. Once the minimum time has passed and the countdown's
@@ -18,12 +22,14 @@ const MAX_MS = 3600; // give up waiting for the background photo after this
 export function Splash({ children }: { children: ReactNode }) {
   const [shown, setShown] = useState(true);
   const [ready, setReady] = useState(false);
+  const [done, setDone] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (prefersReducedMotion()) {
       setShown(false); // eslint-disable-line react-hooks/set-state-in-effect -- media query is client-only
       setReady(true);
+      setDone(true);
       return;
     }
 
@@ -42,10 +48,16 @@ export function Splash({ children }: { children: ReactNode }) {
         e instanceof MouseEvent
           ? [e.clientX, e.clientY]
           : [mark.left + mark.width / 2, mark.top + mark.height / 2];
-      cancelWipe = pixelWipe(x, y, THEME_COLOR, () => {
-        setShown(false);
-        setReady(true);
-      });
+      cancelWipe = pixelWipe(
+        x,
+        y,
+        THEME_COLOR,
+        () => {
+          setShown(false);
+          setReady(true);
+        },
+        () => setDone(true),
+      );
     };
 
     const tick = (now: number) => {
@@ -90,7 +102,9 @@ export function Splash({ children }: { children: ReactNode }) {
           <div className="splash__curtain"></div>
         </div>
       )}
-      <div className={ready ? "app is-ready" : "app"}>{children}</div>
+      <SplashDone.Provider value={done}>
+        <div className={ready ? "app is-ready" : "app"}>{children}</div>
+      </SplashDone.Provider>
     </>
   );
 }

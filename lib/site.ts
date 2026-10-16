@@ -6,7 +6,8 @@ export const THEME_COLOR = "#030817";
 
 /**
  * Test mode: the hunt is playable before the event, the countdown moves to the side (HUD chip and
- * the Me tab), and the scanner shows a radar and arrows toward the hidden codes.
+ * the Me tab), and the scanner shows a radar and arrows toward the hidden codes, and which movement
+ * tracking it's using.
  * On in `next dev`; for a production build, set NEXT_PUBLIC_TEST_MODE=true to turn it on.
  * Off in production: the full countdown screen shows until EVENT_START, then the hunt unlocks.
  */

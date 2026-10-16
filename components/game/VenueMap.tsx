@@ -35,7 +35,7 @@ const at = (x: number, y: number, i = 0) =>
  * out any further than that.
  */
 const HOME: Home = {
-  z: 1.3,
+  z: 1.1,
   x: (161 - (VIEW.x + VIEW.w / 2)) / VIEW.w,
   y: (137 - (VIEW.y + VIEW.h / 2)) / VIEW.h, // the building with its pins, balanced top and bottom
 };
