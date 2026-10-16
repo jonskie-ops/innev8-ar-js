@@ -2107,16 +2107,116 @@ button.psec__head {
   gap: 12px;
   padding: 40px 16px max(22px, env(safe-area-inset-bottom));
   background: linear-gradient(transparent, rgba(2, 6, 17, 0.88) 40%);
+  pointer-events: none; /* taps and drags reach the AR view; only the buttons below catch them */
 }
+.scan__bottom button {
+  pointer-events: auto;
+}
+/* Just above the scan frame (the frame is min(68vw, 300px) square, centred), on a soft dark pill so
+   it reads over the camera */
 .scan__hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(50% + min(34vw, 150px) + 14px);
+  z-index: 2;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: rgba(2, 6, 17, 0.62);
   font: 500 12px/1.5 var(--font-m);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   text-align: center;
   color: var(--accent);
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 .scan__hint b {
   color: #fff;
+}
+/* The row above the strip: the tip and clue centred, Qufoo at the right end (an empty column of
+   his width on the left keeps the text centred on the screen) */
+.scan__row {
+  --q: 84px;
+  display: grid;
+  grid-template-columns: var(--q) minmax(0, 1fr) var(--q);
+  align-items: center;
+  width: 100%;
+  max-width: 520px;
+}
+.scan__words {
+  grid-column: 2;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+@media (max-height: 720px) {
+  .scan__row {
+    --q: 66px;
+  }
+}
+/* The chosen code's clue, just above the strip */
+.scan__clue {
+  max-width: 420px;
+  margin: 0;
+  font: italic 400 12.5px/1.45 var(--font-b);
+  text-align: center;
+  color: var(--muted);
+}
+.scan__clue b {
+  margin-right: 4px;
+  font: 600 11px/1 var(--font-m);
+  font-style: normal;
+  color: var(--gold);
+}
+/* The 8 QR codes along the bottom of the scanner: tap one to look for it */
+.scan__codes {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 420px;
+}
+.scan__code {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0 2px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--faint);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.scan__code .qrt {
+  --qs: min(34px, 8.6vw);
+  font-size: 14px;
+}
+.scan__code:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.scan__code.is-on {
+  background: rgba(214, 181, 109, 0.14);
+  color: var(--gold);
+}
+.scan__code.is-on .qrt__card {
+  box-shadow:
+    0 0 0 2px var(--gold),
+    0 0 14px rgba(214, 181, 109, 0.6);
+}
+.scan__code:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+.scan__code-num {
+  font: 600 9px/1 var(--font-m);
+  letter-spacing: 0.08em;
 }
 /* Catch / prize cards */
 .modal {
@@ -2300,6 +2400,7 @@ button.psec__head {
   touch-action: none;
 }
 .scan__tip {
+  margin: 0;
   font: 500 10px/1.5 var(--font-m);
   letter-spacing: 0.12em;
   text-align: center;
@@ -2334,23 +2435,21 @@ button.psec__head {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 8px;
-  height: 8px;
-  margin: -4px 0 0 -4px;
-  border-radius: 2px;
-  background: var(--cyan);
-  box-shadow: 0 0 8px var(--cyan);
-  transform: rotate(var(--a)) translateY(-27px);
-  animation: blink 1.4s ease-in-out infinite;
-}
-/* The code the player chose to look for */
-.scan__radar-blip.is-target {
   z-index: 1;
   width: 11px;
   height: 11px;
   margin: -5.5px 0 0 -5.5px;
+  border-radius: 2px;
   background: var(--gold);
   box-shadow: 0 0 10px var(--gold);
+  transform: rotate(var(--a)) translateY(-27px);
+  animation: blip-ping 1.1s ease-in-out infinite;
+}
+@keyframes blip-ping {
+  50% {
+    opacity: 0.3;
+    transform: rotate(var(--a)) translateY(-27px) scale(0.7);
+  }
 }
 
 /* Arrow toward the closest hidden code */

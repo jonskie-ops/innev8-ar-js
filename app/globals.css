@@ -770,17 +770,14 @@ p {
     transform: none;
   }
 }
-/* Qufoo in the scanner: bottom right, between the scan frame and the hint. He sniffs while you
-   search and talks once a code is near. Taps go through him to the AR view. */
+/* Qufoo in the scanner: at the right end of the row above the strip, level with the tip and clue
+   (well clear of the scan frame). He sniffs while you search and talks once a code is near; his
+   bubble sits at his left, by his head. Taps go through him. */
 .scanq {
-  position: absolute;
-  right: 8px;
-  bottom: calc(max(22px, env(safe-area-inset-bottom)) + 64px);
-  z-index: 3;
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  max-width: calc(100% - 16px);
+  position: relative;
+  grid-column: 3;
+  justify-self: end;
+  margin-right: -8px;
   pointer-events: none;
   animation: qguide-rise 0.6s var(--ease-out) 0.4s both;
 }
@@ -796,6 +793,12 @@ p {
   mask-image: linear-gradient(to top, transparent 0, #000 30%), linear-gradient(to left, transparent 0, #000 12%),
     linear-gradient(to right, transparent 0, #000 8%);
   mask-composite: intersect;
+}
+@media (max-height: 720px) {
+  .scanq__dog {
+    width: 66px;
+    height: 70px;
+  }
 }
 .scanq__sniff,
 .scanq__talk {
@@ -817,9 +820,11 @@ p {
   height: 100%;
 }
 .scanq__bubble {
-  position: relative;
-  max-width: 240px;
-  margin-bottom: 30px;
+  position: absolute;
+  right: calc(100% - 4px); /* at his left, level with his head: clear of the scan frame and the row */
+  bottom: calc(100% - 18px);
+  width: max-content;
+  max-width: min(240px, calc(100vw - 110px));
   padding: 15px 14px 11px;
   border: 1px solid rgba(18, 191, 234, 0.45);
   border-radius: 16px;
@@ -830,7 +835,7 @@ p {
   content: "";
   position: absolute;
   right: -7px;
-  bottom: 16px;
+  bottom: 14px;
   width: 12px;
   height: 12px;
   border: solid rgba(18, 191, 234, 0.45);

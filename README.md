@@ -45,6 +45,10 @@ site is playable now; set it to `false` for the real launch.
    zooms out when you back away, the codes shrink with it, and they grow as you walk up. Steps to the
    side aren't tracked this way. In test mode, a chip at the top of the scanner says which tracking
    is running.
+   All 8 codes sit in a strip along the bottom of the scanner, one selected: the one you came for
+   (Find it), else the first still to find. Tap another to look for it instead: its clue shows
+   above the strip, and in test mode the radar shows only it (blinking). It's hidden around you
+   straight away if it wasn't already; the camera keeps running. Any code you find still counts.
 3. Each code is invisible until it's held in the scan frame for half a second, then it assembles from
    glowing blocks into a 3D QR code (`ar/qr3d.ts`, its pattern generated from the code's value).
    Tapping it collects it and the catch card opens. Progress is saved on the device (localStorage).

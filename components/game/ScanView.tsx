@@ -7,6 +7,7 @@ import { TEST_MODE } from "@/lib/site";
 import { ScanQufoo } from "../Mascot";
 import type { ArPhase, ArStage, CamState, Guide } from "./ar/stage";
 import { ArrowRightIcon, CameraOffIcon, CloseIcon } from "./icons";
+import { QrTile } from "./QrTile";
 
 /** Codes hidden around the player each time the scanner opens. */
 const PER_SCAN = 3;
@@ -33,8 +34,10 @@ function pickHidden(found: Record<string, number>, target?: Station) {
  * Full-screen AR scanner. The hunt's QR codes are virtual: a few of the ones still to find are hidden
  * around the player, invisible until the camera is held on their spot. Then the code assembles in 3D
  * and a tap collects it. No set order: whichever code is fully scanned first is the one collected,
- * even when the player came looking for a different one. (Test placement: random spots around you;
- * the venue spots come later.)
+ * even when the player came looking for a different one. All 8 codes sit in a strip at the bottom
+ * with one selected (the one they came for, else the first still to find): tap another to look for
+ * it instead. Its clue shows, and the test radar shows only it.
+ * (Test placement: random spots around you; the venue spots come later.)
  */
 export function ScanView({
   target,
@@ -42,7 +45,7 @@ export function ScanView({
   onCatch,
   onClose,
 }: {
-  /** The code the player chose to look for: always hidden here, and the radar points to it. */
+  /** The code the player came to look for (e.g. Find it): always hidden here, and the radar points to it. */
   target?: Station;
   found: Record<string, number>;
   onCatch: (station: Station) => void;
@@ -52,7 +55,10 @@ export function ScanView({
   const hostRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<ArStage | null>(null);
-  const [hidden] = useState(() => pickHidden(found, target));
+  // The code to look for first: the one they came for, else the first still to find
+  const [start] = useState(() => (target && !found[target.id] ? target : STATIONS.find((s) => !found[s.id])));
+  const [hidden] = useState(() => pickHidden(found, start));
+  const [chosen, setChosen] = useState(start); // changed in the strip at the bottom
   const [phase, setPhase] = useState<ArPhase | "loading">("loading");
   const [station, setStation] = useState<Station | null>(null);
   const [cam, setCam] = useState<CamState | null>(null);
@@ -60,6 +66,11 @@ export function ScanView({
   const [failed, setFailed] = useState(false);
   const [xr, setXr] = useState<"on" | "offer" | null>(null);
   const [near, setNear] = useState(false); // a hidden code is on screen
+  const choose = (s: Station) => {
+    if (s === chosen) return;
+    setChosen(s);
+    stageRef.current?.setTarget(s);
+  };
 
   // The latest callbacks, for the AR stage that's set up once
   const live = useRef({ onCatch, onClose });
@@ -72,7 +83,7 @@ export function ScanView({
     let alive = true;
     import("./ar/stage")
       .then(({ createArStage }) =>
-        createArStage(hostRef.current!, videoRef.current!, rootRef.current!, hidden, target, {
+        createArStage(hostRef.current!, videoRef.current!, rootRef.current!, hidden, start, {
           onPhase: (p, st) => {
             setPhase(p);
             setStation(st);
@@ -95,7 +106,7 @@ export function ScanView({
       stageRef.current?.dispose();
       stageRef.current = null;
     };
-  }, [hidden, target]);
+  }, [hidden, start]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -108,7 +119,6 @@ export function ScanView({
   const count = STATIONS.filter((s) => found[s.id]).length;
   const num = station ? `#${pad2(station.num)}` : "";
   const help = TEST_MODE && phase === "searching" ? guide : null; // radar and arrows are a test aid
-  const chosen = target && !found[target.id] ? target : undefined;
 
   let hint: ReactNode = "Starting AR…";
   if (failed) hint = "AR isn't available in this browser.";
@@ -122,6 +132,10 @@ export function ScanView({
     ) : help ? (
       <>
         Hold still<span className="blink">…</span> something is here
+      </>
+    ) : chosen ? (
+      <>
+        Scanning<span className="blink">…</span> look for QR code #{pad2(chosen.num)}
       </>
     ) : (
       <>
@@ -138,7 +152,7 @@ export function ScanView({
   const qufooSays =
     phase === "searching"
       ? near
-        ? "Sniff sniff… I smell a QR code! It's close: move slowly and hold your phone steady."
+        ? "Sniff sniff… I smell a QR code! It's close, hold steady."
         : null
       : phase === "found"
         ? "There it is!"
@@ -186,13 +200,12 @@ export function ScanView({
       {help && (
         <div className="scan__radar" aria-hidden="true">
           <span className="scan__radar-cone"></span>
-          {help.blips.map((b, i) => (
-            <span
-              key={i}
-              className={b.target ? "scan__radar-blip is-target" : "scan__radar-blip"}
-              style={{ "--a": `${b.angle}rad` } as CSSProperties}
-            ></span>
-          ))}
+          {/* Only the code being looked for */}
+          {help.blips
+            .filter((b) => b.target)
+            .map((b, i) => (
+              <span key={i} className="scan__radar-blip" style={{ "--a": `${b.angle}rad` } as CSSProperties}></span>
+            ))}
         </div>
       )}
 
@@ -212,13 +225,12 @@ export function ScanView({
         </span>
       )}
 
-      {!failed && phase !== "loading" && <ScanQufoo say={qufooSays} />}
+      {/* What's happening, just above the scan frame */}
+      <p className="scan__hint" aria-live="polite">
+        {hint}
+      </p>
 
       <div className="scan__bottom">
-        <p className="scan__hint" aria-live="polite">
-          {hint}
-        </p>
-        {phase === "searching" && guide && !guide.sensors && <p className="scan__tip">Drag to look around</p>}
         {xr === "offer" && (
           <>
             <button type="button" className="btn btn--primary btn--sm" onClick={() => stageRef.current?.startXr()}>
@@ -227,6 +239,38 @@ export function ScanView({
             <p className="scan__tip">Walk around the QR codes: they stay in place as you move</p>
           </>
         )}
+        {/* The tip and clue, centred, with Qufoo level with them at the right end */}
+        <div className="scan__row">
+          <div className="scan__words">
+            {phase === "searching" && guide && !guide.sensors && <p className="scan__tip">Drag to look around</p>}
+            {chosen && phase === "searching" && (
+              <p className="scan__clue">
+                <b>#{pad2(chosen.num)}</b> &ldquo;{chosen.clue}&rdquo;
+              </p>
+            )}
+          </div>
+          {!failed && phase !== "loading" && <ScanQufoo say={qufooSays} />}
+        </div>
+        <div className="scan__codes" role="group" aria-label="Choose a QR code to look for">
+          {STATIONS.map((s, i) => {
+            const got = Boolean(found[s.id]);
+            const on = chosen === s;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                className={on ? "scan__code is-on" : "scan__code"}
+                disabled={got}
+                aria-pressed={on}
+                aria-label={got ? `QR code #${s.num}, found` : `Look for QR code #${s.num}`}
+                onClick={() => choose(s)}
+              >
+                <QrTile station={s} state={got ? "found" : "locked"} size="sm" i={i} />
+                <span className="scan__code-num">{pad2(s.num)}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

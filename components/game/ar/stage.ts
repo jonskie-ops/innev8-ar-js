@@ -37,6 +37,11 @@ export type ArEvents = {
 export type ArStage = {
   /** Start full movement tracking; call from a tap. */
   startXr: () => void;
+  /**
+   * The code the player wants to find (or none). If it isn't hidden around them yet, it's hidden now
+   * (the codes are placed again, while still searching). The guide points to it.
+   */
+  setTarget: (station: Station | undefined) => void;
   dispose: () => void;
 };
 
@@ -98,6 +103,8 @@ export async function createArStage(
   target: Station | undefined,
   ev: ArEvents,
 ): Promise<ArStage> {
+  let hidden = hide;
+  let wanted = target;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -268,15 +275,15 @@ export async function createArStage(
       c.spot.removeFromParent();
       c.qr.dispose();
     }
-    const n = hide.length;
+    const n = hidden.length;
     const dist = xr ? XR_DIST : DIST;
     const size = xr ? XR_SIZE : SIZE;
     fx.scale.setScalar(size / 0.72); // the halo, rings and burst were sized for a 0.72-scale code
     const c0 = cam.position;
     // Spread round the room in a random order, the nearest at least ~45° from where the phone points.
     const base = heading() + deg(45 + Math.random() * 30) * (Math.random() < 0.5 ? 1 : -1);
-    const slots = hide.map((_, i) => i).sort(() => Math.random() - 0.5);
-    codes = hide.map((station, i) => {
+    const slots = hidden.map((_, i) => i).sort(() => Math.random() - 0.5);
+    codes = hidden.map((station, i) => {
       const yaw = base + (slots[i] * Math.PI * 2) / n + deg((Math.random() - 0.5) * 40);
       const pitch = deg(-14 + Math.random() * 22);
       const spot = new THREE.Group();
@@ -433,7 +440,7 @@ export async function createArStage(
       if (c.got) continue;
       v.copy(c.spot.position).applyMatrix4(cam.matrixWorldInverse);
       const a = Math.atan2(v.x, -v.z);
-      const isTarget = c.station === target;
+      const isTarget = c.station === wanted;
       blips.push({ angle: a, target: isTarget });
       // Point to the chosen code; without one, to whichever is closest.
       if (!best || (isTarget && !best.target) || (isTarget === best.target && Math.abs(a) < Math.abs(best.a))) {
@@ -647,12 +654,12 @@ export async function createArStage(
     aimFor = 0;
     needPlace = true;
     ev.onXr("on");
-    go(hide.length ? "searching" : "done");
+    go(hidden.length ? "searching" : "done");
   };
 
   place();
   renderer.setAnimationLoop(tick);
-  go(hide.length ? "searching" : "done");
+  go(hidden.length ? "searching" : "done");
   const xrOk = navigator.xr ? await navigator.xr.isSessionSupported("immersive-ar").catch(() => false) : false;
   if (xrOk) {
     void startXr().then(() => {
@@ -661,6 +668,12 @@ export async function createArStage(
   } else void startCamera();
 
   return {
+    setTarget: (station) => {
+      wanted = station;
+      if (!station || hidden.includes(station)) return;
+      hidden = [station, ...hidden];
+      if (phase === "searching" && !active) place();
+    },
     startXr: () => {
       if (xr) return;
       stopCamera();
