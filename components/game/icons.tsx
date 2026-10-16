@@ -152,6 +152,14 @@ export function InfoIcon() {
   );
 }
 
+export function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4.5 7h15M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l.8 11.6A1.5 1.5 0 0 0 8.8 20h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7M10.5 11v5M13.5 11v5" />
+    </svg>
+  );
+}
+
 export function CameraOffIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">

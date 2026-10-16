@@ -7,7 +7,7 @@ import { PROVINCES, TEST_MODE } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
 import { I8Mark } from "./I8Mark";
-import { ArrowRightIcon, CalendarIcon, ChevronDownIcon, ClockIcon, DexIcon, InfoIcon, PinIcon } from "./icons";
+import { ArrowRightIcon, CalendarIcon, ChevronDownIcon, ClockIcon, DexIcon, InfoIcon, PinIcon, TrashIcon } from "./icons";
 import { MiniClock } from "./MiniClock";
 import { QrTile } from "./QrTile";
 
@@ -16,7 +16,8 @@ const timeFmt = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric
 /**
  * My Profile: a summit cover (bridge photo, event title, INNEV8 mark), then a sheet with the player's
  * avatar, name, province and stats, an About section that turns into the edit form, a strip of their
- * QR codes, and the side countdown before the event.
+ * QR codes, the side countdown before the event, and Delete Profile, which wipes the player from this
+ * device and starts the app over from the splash (asks first).
  */
 export function MeView({
   name,
@@ -37,6 +38,7 @@ export function MeView({
 }) {
   const [aboutOpen, setAboutOpen] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [draftName, setDraftName] = useState(name);
   const [draftProvince, setDraftProvince] = useState(province);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -269,6 +271,48 @@ export function MeView({
             </div>
           </section>
         )}
+
+        <section className="psec">
+          <button
+            type="button"
+            className="psec__head"
+            aria-expanded={deleting}
+            aria-controls="me-delete"
+            onClick={() => setDeleting(!deleting)}
+          >
+            <span className="psec__icon psec__icon--danger">
+              <TrashIcon />
+            </span>
+            <span className="psec__title">Delete Profile</span>
+            <span className="psec__chev">
+              <ChevronDownIcon />
+            </span>
+          </button>
+          {deleting && (
+            <div id="me-delete" className="psec__body">
+              <p className="pdelete__text">
+                This erases your name, province and{" "}
+                {count ? `your ${count} QR code${count > 1 ? "s" : ""}` : "progress"} from this phone, and the hunt
+                starts over from the beginning.
+              </p>
+              <div className="pedit__actions">
+                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDeleting(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--danger btn--sm"
+                  onClick={() => {
+                    progress.clear();
+                    location.replace("/"); // a fresh start: splash, mascot, sign-up
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
