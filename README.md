@@ -88,10 +88,20 @@ opens the scanner.
   `sniff.webp` is a 2 s sniffing loop, cut the same way. To rebuild them from new GIFs on a white
   background: `node scripts/mascot.mjs <talking.gif>` and `node scripts/mascot.mjs <sniffing.gif> sniff`
   (uses `sharp`, which comes with Next.js), then copy the numbers they print into `Mascot.tsx`.
-- **Voice:** give a line an `audio` URL in `introTalk()` / `welcomeTalk()` (e.g.
-  `{ text: "...", audio: "/assets/voice/hello.mp3" }`) and he talks for as long as the clip plays
-  (the sign-up guide's lines in `signUpGuide()` are text only for now). Phones block sound until the first tap, so if the
-  splash ended on its own, that line runs as text only.
+- **Voice:** every Qufoo (the big one, the sign-up guide and the scanner's) says his lines out
+  loud, with the words typed as he says them and his mouth moving for as long as the clip plays.
+  The clips are MP3s named after the line they say, recorded into `Qufoo voice lines/` (not
+  committed); `node scripts/voice.mjs` copies them to `public/assets/audio/qufoo/` and writes
+  `lib/voice-clips.json`, and each line finds its clip by its words (`lib/voice.ts`: letters and
+  numbers only, so punctuation a file name can't hold doesn't matter). Run it again after adding
+  or re-recording clips. A clip can't say the player's name, so those lines carry `say`: the words
+  of their clip (e.g. "Welcome back!" for "Welcome back, Joshua!"). In the scanner, "Sniff Sound" loops
+  while he sniffs, in step with his sniffing (its first 2 s match the 2 s sniff loop; each frame
+  is picked from where the sound is), and stops when he speaks up ("I smell a QR code!"). A line
+  with no clip stays text only.
+  Phones block sound until the page is tapped, so his hello after the splash waits with "Tap to
+  hear Qufoo" and that tap starts it. The first tap also readies the one audio element he speaks
+  through, so the scanner's lines (which come on their own) can play later.
 
 ## Before the event
 
@@ -110,6 +120,7 @@ opens the scanner.
 | `components/App.tsx` | Countdown gate (production) vs. game |
 | `components/Splash.tsx`, `Emblem.tsx` | INNEV8 splash screen |
 | `components/Mascot.tsx`, `scripts/mascot.mjs` | The talking mascot after the splash; the script that builds its sprite |
+| `lib/voice.ts`, `lib/voice-clips.json`, `scripts/voice.mjs` | Qufoo's voice clips and the script that adds them |
 | `components/CountdownSection.tsx`, `Countdown.tsx` | "The countdown is on." section and clock |
 | `components/game/Game.tsx` | Game shell: HUD, tabs, overlays |
 | `components/game/MapView.tsx` | Venue map (home) |

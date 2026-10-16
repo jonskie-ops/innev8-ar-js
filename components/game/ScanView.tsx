@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { pad2 } from "@/lib/dom";
 import { STATIONS, TOTAL, type Station } from "@/lib/hunt";
 import { TEST_MODE } from "@/lib/site";
-import { ScanQufoo } from "../Mascot";
+import { ScanQufoo, type Line } from "../Mascot";
 import type { ArPhase, ArStage, CamState, Guide } from "./ar/stage";
 import { ArrowRightIcon, CameraOffIcon, CloseIcon } from "./icons";
 import { QrTile } from "./QrTile";
@@ -148,20 +148,20 @@ export function ScanView({
   else if (phase === "done") hint = `You've found all ${TOTAL} QR codes!`;
 
   const camMessage = cam && xr !== "on" ? CAM_MESSAGE[cam] : undefined;
-  // Qufoo sniffs while you search, and speaks up once a code is near
-  const qufooSays =
+  // Qufoo sniffs while you search (you hear him sniff), and speaks up once a code is near
+  const qufooSays: Line | null =
     phase === "searching"
       ? near
-        ? "Sniff sniff… I smell a QR code! It's close, hold steady."
+        ? { text: "Sniff sniff… I smell a QR code! It's close, hold steady.", say: "I smell a QR code! It's close, hold steady." }
         : null
       : phase === "found"
-        ? "There it is!"
+        ? { text: "There it is!" }
         : phase === "ready"
-          ? "Tap it to collect it!"
+          ? { text: "Tap it to collect it!" }
           : phase === "collecting"
-            ? "Got it! Good job!"
+            ? { text: "Got it! Good job!" }
             : phase === "done"
-              ? `You found all ${TOTAL}! Amazing!`
+              ? { text: `You found all ${TOTAL}! Amazing!` }
               : null;
   // Test aid: how this phone follows the player's movement
   const tracking =

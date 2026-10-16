@@ -1,17 +1,33 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- a 20 KB still shown until the talking sprite is ready */
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { prefersReducedMotion } from "@/lib/dom";
 import { STATIONS, TOTAL } from "@/lib/hunt";
 import { progress, useProgress, type Progress } from "@/lib/store";
+import { anyClip, voiceFor } from "@/lib/voice";
 import { useSplashDone } from "./Splash";
 
 /** The mascot's name. */
 export const MASCOT = "Qufoo";
 
-/** One thing the mascot says. Add `audio` (a voice clip URL) and he talks for as long as it plays. */
-export type Line = { text: string; audio?: string };
+/**
+ * One thing the mascot says. A line with a voice clip is said out loud, and he talks for as long as
+ * it plays: `audio`, or the recorded clip that matches its words (lib/voice.ts), or the words in
+ * `say` when the recording's differ from the text (a clip can't say the player's name, so it's the
+ * line without it). Text before the words in `say` shows at once (e.g. "Sniff sniff…", after you've
+ * heard him sniffing).
+ */
+export type Line = { text: string; say?: string; audio?: string };
+/** A line's voice clip, and how many characters of its text come before the clip's words. */
+function clipOf(line?: Line | null): { clip?: string; lead: number } {
+  if (!line) return { lead: 0 };
+  const said = line.say ?? line.text;
+  return {
+    clip: line.audio ?? voiceFor(said),
+    lead: line.text.endsWith(said) ? line.text.length - said.length : 0,
+  };
+}
 
 /**
  * His talking loop: 36 frames (2.4 s at 15 fps) cut out of the source animation, 6 across in one
@@ -21,12 +37,19 @@ const TALK = { src: "/assets/img/mascot/talk.webp", cols: 6, frames: 36, w: 320,
 const REST = new Set([0, 1, 2, 3, 4, 17, 18, 19, 20, 26]);
 /** Sniffing (the scanner, while he searches): a 2 s loop, cut to the same frame as TALK. */
 const SNIFF = { src: "/assets/img/mascot/sniff.webp", cols: 6, frames: 30, w: 240, h: 255, fps: 15 };
+/**
+ * The sniff sound, looped with his sniffing: its first 2 s line up with the 2 s loop (the sniffs
+ * with his head's moves) when it's played from SNIFF_SOUND_AT at the loop's first frame.
+ */
+const SNIFF_SOUND = voiceFor("Sniff Sound");
+const SNIFF_SOUND_AT = 0.06;
 const IDLE = "/assets/img/mascot/idle.webp"; // frame 0 on its own: shown until the sprite is ready
 const CPS = 34; // typing speed, characters per second
 const LOAD_WAIT_MS = 4000; // after the splash, wait at most this long for the sprite
 const RISE_MS = 700;
 const LEAVE_MS = 450;
 const MAP_DELAY_MS = 500; // after sign-up, let the map appear before he comes up
+const VOICE_WAIT_MS = 1500; // a slow clip holds a line's words back at most this long
 
 type Screen = "countdown" | "game";
 type Stage = "wait" | "in" | "on" | "out" | "gone";
@@ -44,7 +67,10 @@ function introTalk(screen: Screen, p: Progress): Talk {
   if (screen === "countdown")
     return {
       lines: [
-        { text: name ? `Hi, ${name}! I'm ${MASCOT}, your QR hunting buddy.` : `Hi! I'm ${MASCOT}, your QR hunting buddy.` },
+        {
+          text: name ? `Hi, ${name}! I'm ${MASCOT}, your QR hunting buddy.` : `Hi! I'm ${MASCOT}, your QR hunting buddy.`,
+          say: `Hi! I'm ${MASCOT}, your QR hunting buddy.`,
+        },
         { text: "The hunt opens on November 20 at the summit. See you there!" },
       ],
       guideNext: false,
@@ -57,7 +83,7 @@ function introTalk(screen: Screen, p: Progress): Talk {
   const found = STATIONS.filter((s) => p.found[s.id]).length;
   return {
     lines: [
-      { text: `Welcome back, ${name}!` },
+      { text: `Welcome back, ${name}!`, say: "Welcome back!" },
       {
         text:
           found === TOTAL
@@ -80,8 +106,11 @@ function tourTalk(stop: TourStop, p: Progress, then?: () => void): Talk {
   const name = p.name.trim();
   const lines: Line[] = {
     map: [
-      { text: `Welcome to the hunt, ${name}! Let me show you around.` },
-      { text: `${TOTAL} INNEV8 QR codes are hiding around the summit, and only your camera can see them.` },
+      { text: `Welcome to the hunt, ${name}! Let me show you around.`, say: "Welcome to the hunt! Let me show you around." },
+      {
+        text: `${TOTAL} INNEV8 QR codes are hiding around the summit, and only your camera can see them.`,
+        say: `${TOTAL} QR codes are hiding around the summit, and only your camera can see them.`,
+      },
       { text: "This is the Map of the venue. Each number marks where a QR code is hiding: tap one to read its clue." },
       { text: "Now try the menu below. Tap any button and I'll tell you what it's for!" },
     ],
@@ -106,7 +135,10 @@ function tourTalk(stop: TourStop, p: Progress, then?: () => void): Talk {
   }[stop];
   const toured = new Set([...(p.tour ?? []), stop]);
   if (TOUR_STOPS.every((s) => toured.has(s))) {
-    const outro = { text: `That's the whole tour, ${name}! Need me again? Tap me down in the corner.` };
+    const outro = {
+      text: `That's the whole tour, ${name}! Need me again? Tap me down in the corner.`,
+      say: "That's the whole tour! Need me again? Tap me down in the corner.",
+    };
     if (stop === "scan") lines.splice(lines.length - 1, 0, outro);
     else lines.push(outro);
   }
@@ -156,12 +188,15 @@ const useBusy = () =>
   );
 
 /** What he says on each sign-up step (components/game/Onboarding.tsx). */
-export const signUpGuide = (step: number, name: string) =>
+export const signUpGuide = (step: number, name: string): Line | undefined =>
   [
-    "Type your name above and tap Next.",
-    "Now pick your province, then tap Next.",
-    `You're all set, ${name.trim()}! Tap Let's Go to start the hunt.`,
-  ][step] ?? "";
+    { text: "Type your name above and tap Next." },
+    { text: "Now pick your province, then tap Next." },
+    {
+      text: `You're all set, ${name.trim()}! Tap Let's Go to start the hunt.`,
+      say: "You're all set! Tap Let's Go to start the hunt.",
+    },
+  ][step];
 
 // ---- The sign-up guide waits until the hello after the splash is over
 let introOver = false;
@@ -180,6 +215,105 @@ const useIntroOver = () =>
     () => introOver,
     () => false,
   );
+
+// ---- His voice: one audio element plays every clip. Phones only let a page make sound once it's
+// been tapped, and then only from that tap; once this element has played from a tap, it can play
+// the clips that come on their own (the scanner's) too.
+let voiceEl: HTMLAudioElement | null = null;
+let unlocked = false;
+const player = () => (voiceEl ??= new Audio());
+function loadClip(src: string) {
+  const a = player();
+  if (a.getAttribute("src") !== src) a.src = src;
+  return a;
+}
+function speak(a: HTMLAudioElement) {
+  a.currentTime = 0;
+  return a.play().then(() => {
+    unlocked = true;
+  });
+}
+// The first tap anywhere readies the element (a play() from the tap, stopped straight away), even
+// if he isn't saying anything then (e.g. Skip)
+function unlock() {
+  const a = player();
+  if (unlocked || !a.paused || navigator.userActivation?.isActive === false) return;
+  if (!a.getAttribute("src")) {
+    if (!anyClip) return;
+    a.src = anyClip;
+  }
+  unlocked = true;
+  a.play().catch((e: DOMException) => {
+    if (e.name === "NotAllowedError") unlocked = false; // not a real tap after all: try the next one
+  });
+  a.pause();
+}
+if (typeof window !== "undefined") for (const t of ["touchend", "click", "keydown"]) addEventListener(t, unlock, true);
+const lengthOf = (a: HTMLAudioElement) => (Number.isFinite(a.duration) ? a.duration : 0);
+
+type Said = "wait" | "hush" | "go";
+/**
+ * Says `line`'s clip (if it has one) while `on`; a new line starts its own. `said`: "wait" until
+ * his voice starts, "go" once it plays (or if it can't: a broken clip, or a slow one after
+ * VOICE_WAIT_MS), "hush" if the phone wants a tap first (`sayNow`, from that tap, says it).
+ * `cps`: how fast to type the words (after the `lead` characters) so they come as he says them.
+ * `voice`: the clip is playing. With `keep`, a clip plays to its end even if he goes (the scanner
+ * closes as he says "Got it!").
+ */
+function useVoice(line: unknown, text: string, clip: string | undefined, lead: number, on: boolean, keep = false) {
+  const [heard, setHeard] = useState<{ line?: unknown; said: Said; secs: number }>({ said: "wait", secs: 0 });
+  const [voice, setVoice] = useState(false);
+  const leaving = useRef(false);
+  const mine = Boolean(clip) && heard.line === line;
+  const said: Said = !clip ? "go" : mine ? heard.said : "wait";
+  const secs = mine ? heard.secs : 0;
+  const cps = secs > 1 ? Math.min(Math.max((text.length - lead) / (secs - 0.4), 8), 60) : CPS;
+
+  useLayoutEffect(() => {
+    leaving.current = false;
+    return () => {
+      leaving.current = true; // unmounting (layout cleanups run before the voice's below)
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!on || !clip) return;
+    const a = loadClip(clip);
+    const playing = () => setVoice(true);
+    const stopped = () => setVoice(false);
+    a.addEventListener("playing", playing);
+    a.addEventListener("pause", stopped);
+    a.addEventListener("ended", stopped);
+    let open = true;
+    const settle = (s: "hush" | "go") => {
+      if (!open) return;
+      open = false;
+      setHeard({ line, said: s, secs: lengthOf(a) });
+    };
+    speak(a).then(
+      () => settle("go"),
+      (e: DOMException) => settle(e.name === "NotAllowedError" ? "hush" : "go"), // a broken clip: words only
+    );
+    const id = window.setTimeout(() => settle("go"), VOICE_WAIT_MS);
+    return () => {
+      open = false;
+      clearTimeout(id);
+      a.removeEventListener("playing", playing);
+      a.removeEventListener("pause", stopped);
+      a.removeEventListener("ended", stopped);
+      setVoice(false);
+      if (!(keep && leaving.current) && a.getAttribute("src") === clip) a.pause();
+    };
+  }, [line, clip, on, keep]);
+
+  const sayNow = () => {
+    if (!clip) return;
+    const a = loadClip(clip);
+    setHeard({ line, said: "go", secs: lengthOf(a) });
+    void speak(a).catch(() => {});
+  };
+  return { said, cps, voice, sayNow };
+}
 
 // ---- Shared: the sprites (each fetched once), the talking dog, the typing
 const spriteLoads = new Map<string, Promise<HTMLImageElement>>();
@@ -207,17 +341,24 @@ function useSprite(enabled: boolean, src = TALK.src) {
 
 const useReducedMotion = () => useState(() => typeof window !== "undefined" && prefersReducedMotion())[0];
 
-/** Types `text` out while `run`; starts over whenever the text changes. */
-function useTyping(text: string, run: boolean, instant: boolean) {
+/**
+ * Types `text` out while `run`, `cps` characters a second, after the first `from` (shown at once);
+ * starts over whenever the text changes.
+ */
+function useTyping(text: string, run: boolean, instant: boolean, cps = CPS, from = 0) {
   const [state, setState] = useState({ text, n: 0 });
-  const n = state.text === text ? state.n : 0;
+  const n = Math.max(state.text === text ? state.n : 0, from);
   useEffect(() => {
     if (!run || instant || n >= text.length) return;
-    const id = window.setTimeout(() => setState({ text, n: n + 1 }), 1000 / CPS);
+    const id = window.setTimeout(() => setState({ text, n: n + 1 }), 1000 / cps);
     return () => clearTimeout(id);
-  }, [run, instant, n, text]);
+  }, [run, instant, n, text, cps]);
   const typed = instant ? text.length : n;
-  return { typed, done: typed >= text.length, finish: () => setState({ text, n: text.length }) };
+  return {
+    typed,
+    done: typed >= text.length,
+    finish: () => setState({ text, n: text.length }),
+  };
 }
 
 /** Plays the talking loop on a canvas while `talking`; when he stops, he finishes on the next closed mouth. */
@@ -271,6 +412,15 @@ function QufooDog({ sprite, talking }: { sprite: HTMLImageElement | null; talkin
   );
 }
 
+function SpeakerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
+      <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+    </svg>
+  );
+}
+
 /** The line typed so far, with the rest held invisible so the bubble doesn't grow as it types. */
 function Typed({ text, typed, className }: { text: string; typed: number; className: string }) {
   return (
@@ -304,10 +454,8 @@ export function Mascot({ screen }: { screen: Screen }) {
   const [stage, setStage] = useState<Stage>("wait");
   const [talk, setTalk] = useState<Talk>({ lines: [], guideNext: false });
   const [index, setIndex] = useState(0);
-  const [voice, setVoice] = useState(false); // a voice clip is playing
   const [waited, setWaited] = useState(false);
   const sprite = useSprite(!skipIntro);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // After the splash: come up as soon as the sprite is ready (or, failing that, with the still)
   useEffect(() => {
@@ -366,9 +514,11 @@ export function Mascot({ screen }: { screen: Screen }) {
 
   useEffect(() => {
     if (stage !== "in") return;
+    const { clip } = clipOf(talk.lines[0]);
+    if (clip) loadClip(clip).load(); // fetched while he rises
     const id = window.setTimeout(() => setStage("on"), reduced ? 0 : RISE_MS);
     return () => clearTimeout(id);
-  }, [stage, reduced]);
+  }, [stage, reduced, talk]);
 
   useEffect(() => {
     if (stage !== "out") return;
@@ -378,22 +528,12 @@ export function Mascot({ screen }: { screen: Screen }) {
 
   const line = talk.lines[index];
   const text = line?.text ?? "";
-  const { typed, done, finish } = useTyping(text, stage === "on", reduced);
-
-  // Voice clip, when the line has one. If the browser won't play sound yet (no tap since the page
-  // opened), the line just runs as text.
-  useEffect(() => {
-    if (stage !== "on" || !line?.audio) return;
-    const a = new Audio(line.audio);
-    audioRef.current = a;
-    a.onplaying = () => setVoice(true);
-    a.onpause = a.onended = () => setVoice(false);
-    a.play().catch(() => setVoice(false));
-    return () => {
-      a.pause();
-      audioRef.current = null;
-    };
-  }, [stage, line]);
+  // The line's voice clip, if it has one. If the phone won't play sound yet (nothing tapped since
+  // the page opened, e.g. his hello after the splash), he waits for a tap to say it (see next).
+  const { clip, lead } = clipOf(line);
+  const { said, cps, voice, sayNow } = useVoice(line, text, clip, lead, stage === "on");
+  // A voiced line's words are typed as he says them, so each line shows once, said out loud
+  const { typed, done, finish } = useTyping(text, stage === "on" && said === "go", reduced, cps, lead);
 
   const ran = useRef<Talk | null>(null);
   const leave = () => {
@@ -408,8 +548,9 @@ export function Mascot({ screen }: { screen: Screen }) {
   // No timers: every line waits for a tap. The first tap finishes typing, the next moves on.
   const next = () => {
     if (stage !== "on") return;
+    if (said === "hush") return sayNow(); // sound is allowed now (this tap): he says the line
     if (!done) return finish();
-    audioRef.current?.pause();
+    voiceEl?.pause();
     if (index < talk.lines.length - 1) setIndex(index + 1);
     else leave();
   };
@@ -434,7 +575,8 @@ export function Mascot({ screen }: { screen: Screen }) {
 
   if (stage === "wait" || stage === "gone") return null;
   const last = index === talk.lines.length - 1;
-  const talking = !reduced && stage === "on" && (!done || voice);
+  const talking = !reduced && stage === "on" && said === "go" && (!done || voice);
+  const hush = said === "hush";
 
   return (
     <div className={`host is-${stage}`} role="dialog" aria-label={`${MASCOT}, your QR hunting buddy`} onClick={next}>
@@ -443,7 +585,15 @@ export function Mascot({ screen }: { screen: Screen }) {
           <span className="qufoo-name" aria-hidden="true">
             {MASCOT}
           </span>
-          <Typed text={text} typed={typed} className="host__text" />
+          <div className="host__say">
+            <Typed text={text} typed={hush ? 0 : typed} className="host__text" />
+            {hush && (
+              <p className="host__listen" aria-hidden="true">
+                <SpeakerIcon />
+                Tap to hear {MASCOT}
+              </p>
+            )}
+          </div>
           <div className="host__foot">
             <span className="host__dots" aria-hidden="true">
               {talk.lines.map((_, i) => (
@@ -451,7 +601,7 @@ export function Mascot({ screen }: { screen: Screen }) {
               ))}
             </span>
             <span className="host__hint" aria-hidden="true">
-              {!done ? "" : last && !talk.guideNext ? "Tap to close" : "Tap to continue"}
+              {hush || !done ? "" : last && !talk.guideNext ? "Tap to close" : "Tap to continue"}
             </span>
           </div>
           <button
@@ -477,11 +627,15 @@ export function Mascot({ screen }: { screen: Screen }) {
  * Qufoo on the sign-up screens: a small Qufoo above the Next button saying what to do on this
  * step. Part of the page (nothing is covered); he shows up once the hello after the splash is over.
  */
-export function QufooGuide({ text }: { text: string }) {
+export function QufooGuide({ line }: { line?: Line }) {
   const show = useIntroOver();
   const reduced = useReducedMotion();
   const sprite = useSprite(show);
-  const { typed, done } = useTyping(text, show, reduced);
+  const text = line?.text ?? "";
+  // Each step's line is said out loud (by now he's been tapped, so the phone allows it)
+  const { clip, lead } = clipOf(line);
+  const { said, cps, voice } = useVoice(text, text, clip, lead, show && text !== "");
+  const { typed, done } = useTyping(text, show && said !== "wait", reduced, cps, lead);
   if (!show || !text) return null;
   return (
     <div className="qguide">
@@ -492,7 +646,7 @@ export function QufooGuide({ text }: { text: string }) {
         <Typed text={text} typed={typed} className="qguide__text" />
       </div>
       <div className="qguide__dog" aria-hidden="true">
-        <QufooDog sprite={sprite} talking={!reduced && !done} />
+        <QufooDog sprite={sprite} talking={!reduced && said !== "wait" && (!done || voice)} />
       </div>
     </div>
   );
@@ -598,40 +752,75 @@ export function QufooDock({
  * Qufoo in the scanner: he sniffs while you search, and talks (`say`) once a hidden code is near,
  * and as you find and collect it. Decorative: taps go through him to the AR view.
  */
-export function ScanQufoo({ say }: { say: string | null }) {
+export function ScanQufoo({ say }: { say: Line | null }) {
   const reduced = useReducedMotion();
   const sniffSprite = useSprite(true, SNIFF.src);
   const talkSprite = useSprite(true);
   const sniffRef = useRef<HTMLCanvasElement>(null);
   const talking = say !== null;
-  const { typed, done } = useTyping(say ?? "", talking, reduced);
+  const text = say?.text ?? "";
+  const { clip, lead } = clipOf(say);
+  // Said out loud; a clip plays to its end even when the scanner closes (e.g. "Got it! Good job!")
+  const { said, cps, voice } = useVoice(text, text, clip, lead, talking, true);
+  const { typed, done } = useTyping(text, talking && said !== "wait", reduced, cps, lead);
 
-  // Sniffing, on a loop, while he isn't talking
+  // Sniffing, on a loop, while he isn't talking, with the sniff sound in step: each frame is picked
+  // from where the sound is (it loops the same 2 s), so his sniffs and the sound's stay together.
+  // Until the sound plays (or without it), the frames go by the clock.
   useEffect(() => {
     const ctx = sniffRef.current?.getContext("2d");
     if (!ctx || !sniffSprite) return;
-    let k = 0;
-    const draw = () => {
+    let k = -1;
+    const draw = (f: number) => {
+      if (f === k) return;
+      k = f;
       ctx.clearRect(0, 0, SNIFF.w, SNIFF.h);
-      ctx.drawImage(sniffSprite, (k % SNIFF.cols) * SNIFF.w, Math.floor(k / SNIFF.cols) * SNIFF.h, SNIFF.w, SNIFF.h, 0, 0, SNIFF.w, SNIFF.h);
+      ctx.drawImage(sniffSprite, (f % SNIFF.cols) * SNIFF.w, Math.floor(f / SNIFF.cols) * SNIFF.h, SNIFF.w, SNIFF.h, 0, 0, SNIFF.w, SNIFF.h);
     };
-    draw();
+    draw(0);
     if (reduced || talking) return;
-    const id = window.setInterval(() => {
-      k = (k + 1) % SNIFF.frames;
-      draw();
-    }, 1000 / SNIFF.fps);
-    return () => clearInterval(id);
+    const loop = SNIFF.frames / SNIFF.fps;
+    const a = SNIFF_SOUND ? loadClip(SNIFF_SOUND) : null;
+    let heard = false; // the sound is playing
+    const onPlaying = () => {
+      heard = true;
+    };
+    if (a) {
+      a.addEventListener("playing", onPlaying);
+      a.currentTime = SNIFF_SOUND_AT;
+      void a.play().catch(() => {}); // no sound yet (no tap): he sniffs by the clock
+    }
+    const start = performance.now();
+    let raf = 0;
+    const tick = () => {
+      let t = ((performance.now() - start) / 1000) % loop;
+      if (a && !a.paused && a.getAttribute("src") === SNIFF_SOUND && (heard || a.currentTime > SNIFF_SOUND_AT + 0.05)) {
+        t = a.currentTime - SNIFF_SOUND_AT;
+        if (t >= loop || t < 0) {
+          a.currentTime = SNIFF_SOUND_AT; // round again: the loop and the sound start over together
+          t = 0;
+        }
+      }
+      draw(Math.floor(t * SNIFF.fps) % SNIFF.frames);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (!a) return;
+      a.removeEventListener("playing", onPlaying);
+      if (a.getAttribute("src") === SNIFF_SOUND) a.pause();
+    };
   }, [sniffSprite, reduced, talking]);
 
   return (
     <div className={talking ? "scanq is-talking" : "scanq"} aria-hidden="true">
-      {say !== null && (
-        <div className="scanq__bubble" key={say}>
+      {talking && (
+        <div className="scanq__bubble" key={text}>
           <span className="qufoo-name">{MASCOT}</span>
           <p className="scanq__text">
-            {say.slice(0, typed)}
-            <span className="qufoo-unsaid">{say.slice(typed)}</span>
+            {text.slice(0, typed)}
+            <span className="qufoo-unsaid">{text.slice(typed)}</span>
           </p>
         </div>
       )}
@@ -640,7 +829,7 @@ export function ScanQufoo({ say }: { say: string | null }) {
           {sniffSprite ? <canvas ref={sniffRef} width={SNIFF.w} height={SNIFF.h} /> : <img src={IDLE} alt="" />}
         </span>
         <span className="scanq__talk">
-          <QufooDog sprite={talkSprite} talking={!reduced && talking && !done} />
+          <QufooDog sprite={talkSprite} talking={!reduced && talking && said !== "wait" && (!done || voice)} />
         </span>
       </div>
     </div>

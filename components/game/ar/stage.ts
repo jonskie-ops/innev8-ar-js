@@ -526,7 +526,6 @@ export async function createArStage(
       }
     }
 
-    const pe = now - t0;
     if (phase === "searching") {
       guide();
       // Is a hidden code held inside the scan frame? Or at least on screen (near)?
@@ -561,6 +560,7 @@ export async function createArStage(
 
     if (active) {
       const { qr, sway } = active;
+      const pe = now - t0; // time in this phase, read after the search above may have just started one
       if (phase === "found") {
         qr.update(clamp01(pe / REVEAL_S), now, 0);
         haloMat.opacity = 0.7 * easeOut(pe / 0.5) * (1 - 0.4 * easeOut((pe - 0.6) / 0.8));

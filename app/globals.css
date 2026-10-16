@@ -583,6 +583,42 @@ p {
 .qufoo-unsaid {
   visibility: hidden;
 }
+/* Before the first tap the phone keeps him quiet: "Tap to hear Qufoo" where his words will be */
+.host__say {
+  position: relative;
+}
+.host__listen {
+  position: absolute;
+  inset: 0 34px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font: 600 14px/1.3 var(--font-h);
+  color: var(--cyan);
+}
+.host__listen svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: host-listen 1.4s ease-in-out infinite;
+}
+@keyframes host-listen {
+  50% {
+    transform: scale(1.15);
+    opacity: 0.7;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .host__listen svg {
+    animation: none;
+  }
+}
 .qufoo-sr {
   position: absolute;
   width: 1px;

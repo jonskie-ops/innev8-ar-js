@@ -134,7 +134,7 @@ export function Onboarding() {
       </div>
 
       <div className="wizard__foot">
-        <QufooGuide text={signUpGuide(step, name)} />
+        <QufooGuide line={signUpGuide(step, name)} />
         <button type="submit" className="btn btn--primary btn--block" disabled={!canNext}>
           {step < STEPS - 1 ? (
             <>
