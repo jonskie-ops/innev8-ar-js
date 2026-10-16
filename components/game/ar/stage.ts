@@ -18,6 +18,8 @@ export type Guide = {
   turn: "left" | "right" | "up" | "down" | null;
   /** True when the phone's motion sensors steer the view; false means drag to look. */
   sensors: boolean;
+  /** A code is on screen but too far to reveal: about how far it is (m). Walk closer. */
+  away: number | null;
 };
 
 export type ArEvents = {
@@ -45,22 +47,26 @@ export type ArStage = {
   dispose: () => void;
 };
 
-const DIST = 3.2; // how far away the codes sit
+const DIST = 3.2; // how far away the nearest code sits (and every code, when walking can't be read)
+const FAR = 9; // the farthest: the codes are spread from DIST to FAR, so most need walking up to
+const REACH = 4.2; // get this close to a code to reveal it
 const SIZE = 1.05; // code scale: about 1.3 units across, most of a phone screen's width
 // With WebXR the units are real metres and the phone's movement is tracked: each code is a ~60 cm
-// panel 2 m away, so it grows as you walk up to it and shrinks as you back away.
+// panel, 2 to 5 m away (room-sized), so it grows as you walk up to it and shrinks as you back away.
 const XR_DIST = 2;
+const XR_FAR = 5;
+const XR_REACH = 2.6;
 const XR_SIZE = 0.5;
 // Without WebXR, walking is read from the camera feed (./flow) and moves the virtual camera.
 const NEAR = 0.9; // the closest you can get to a code
-const ROAM = 10; // how far you can wander from where the scanner opened
+const ROAM = 20; // how far you can wander from where the scanner opened
 const STEP_MAX = 0.35; // the most the camera moves in one frame
 const AIM_S = 0.45; // hold a code in the frame this long to reveal it
 // The reveal zone, in screen units (-1…1 across): about the inside of the scan frame. The arrows use
 // the same edges, so "hold still" always means the code is in the zone.
 const AIM_X = 0.5;
 const AIM_Y = 0.24;
-const NEAR_OUT = 1.3; // "near" starts when a hidden code is on screen and ends once it's this far out
+const NEAR_OUT = 1.3; // "near" starts when a code in reach is on screen and ends once it's this far out
 const REVEAL_S = 1.6;
 const COLLECT_S = 1.25;
 const BURST = 120;
@@ -81,7 +87,15 @@ function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D)
   return tex;
 }
 
-type Hidden = { station: Station; qr: Qr3d; spot: THREE.Group; sway: THREE.Group; shimmer: THREE.Points; got: boolean };
+type Hidden = {
+  station: Station;
+  qr: Qr3d;
+  spot: THREE.Group;
+  sway: THREE.Group;
+  shimmer: THREE.Points;
+  ghost: THREE.Mesh;
+  got: boolean;
+};
 
 /**
  * The scanner's AR layer. On phones with WebXR AR (Android Chrome with ARCore) the phone's movement is
@@ -89,8 +103,10 @@ type Hidden = { station: Station; qr: Qr3d; spot: THREE.Group; sway: THREE.Group
  * Elsewhere they sit at fixed directions around the player; motion sensors keep them put as the phone
  * turns (like Pokémon GO's AR), otherwise drag to look. Walking is read from the camera picture: as
  * it zooms out (backing away) the codes shrink with the room, as it zooms in they grow.
- * Each is invisible until the camera is held on its spot, then it assembles into a 3D QR code, and a
- * tap collects it. Drawn over the camera feed, or on a plain dark background when there's no camera.
+ * The codes are spread out, one near and the rest farther off (all near when walking can't be read:
+ * no camera). Each is only a faint "?" outline and shimmer until the camera is held on its spot from
+ * close enough (farther off: walk up to it), then it assembles into a 3D QR code, and a tap collects
+ * it. Drawn over the camera feed, or on a plain dark background when there's no camera.
  * There's no set order: whichever code is revealed and tapped first is the one collected. `target` is
  * the code the player chose to look for, if any; the guide points to it, but it's hidden like the rest.
  */
@@ -244,6 +260,38 @@ export async function createArStage(
     }),
   );
 
+  // A hidden code's faint outline with a "?" (like the codes still to find in the strip), so you can
+  // see where one is from across the room: small far off, bigger as you walk up to it. It gives way
+  // to the code itself once that's revealed.
+  const ghostTex = track(
+    canvasTexture(256, 256, (g) => {
+      g.beginPath();
+      g.roundRect(12, 12, 232, 232, 30);
+      g.fillStyle = "rgba(201, 244, 255, 0.1)";
+      g.fill();
+      g.lineWidth = 8;
+      g.strokeStyle = "#c9f4ff";
+      g.stroke();
+      g.fillStyle = "#c9f4ff";
+      g.font = "800 128px sans-serif";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText("?", 128, 138);
+    }),
+  );
+  const ghostGeo = track(new THREE.PlaneGeometry(1.22, 1.22)); // the code's frame size
+  const ghostMat = track(
+    new THREE.MeshBasicMaterial({
+      map: ghostTex,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      fog: false,
+    }),
+  );
+
   // ---- The hidden codes
   let codes: Hidden[] = [];
   let active: Hidden | null = null;
@@ -274,9 +322,13 @@ export async function createArStage(
     for (const c of codes) {
       c.spot.removeFromParent();
       c.qr.dispose();
+      (c.shimmer.material as THREE.Material).dispose();
     }
     const n = hidden.length;
     const dist = xr ? XR_DIST : DIST;
+    // Walking can be read (WebXR, or the camera): spread the codes from near to far, in random order
+    const far = xr ? XR_FAR : camOn ? FAR : DIST;
+    const away = hidden.map((_, i) => (n > 1 ? dist + ((far - dist) * i) / (n - 1) : dist)).sort(() => Math.random() - 0.5);
     const size = xr ? XR_SIZE : SIZE;
     fx.scale.setScalar(size / 0.72); // the halo, rings and burst were sized for a 0.72-scale code
     const c0 = cam.position;
@@ -285,13 +337,11 @@ export async function createArStage(
     const slots = hidden.map((_, i) => i).sort(() => Math.random() - 0.5);
     codes = hidden.map((station, i) => {
       const yaw = base + (slots[i] * Math.PI * 2) / n + deg((Math.random() - 0.5) * 40);
-      const pitch = deg(-14 + Math.random() * 22);
+      // Between chest and head height (a little below the phone to a little above), however far
+      const rise = -0.7 + Math.random() * 1.15;
       const spot = new THREE.Group();
-      spot.position.set(
-        c0.x - Math.sin(yaw) * Math.cos(pitch) * dist,
-        c0.y + Math.sin(pitch) * dist,
-        c0.z - Math.cos(yaw) * Math.cos(pitch) * dist,
-      );
+      const d = away[i];
+      spot.position.set(c0.x - Math.sin(yaw) * d, c0.y + rise, c0.z - Math.cos(yaw) * d);
       spot.lookAt(c0.x, c0.y + (spot.position.y - c0.y) * 0.6, c0.z); // face the player, roughly upright
       const sway = new THREE.Group();
       sway.scale.setScalar(size);
@@ -299,10 +349,17 @@ export async function createArStage(
       const qr = buildQr3d(station);
       qr.root.visible = false;
       sway.add(qr.root);
-      const shimmer = new THREE.Points(shimmerGeo, shimmerMat);
+      const ghost = new THREE.Mesh(ghostGeo, ghostMat);
+      ghost.position.z = -0.04;
+      ghost.visible = false;
+      sway.add(ghost);
+      // Its shimmer starts as easy to spot as a near one's, and grows as you walk up to it
+      const mat = shimmerMat.clone();
+      mat.size *= d / dist;
+      const shimmer = new THREE.Points(shimmerGeo, mat);
       spot.add(shimmer);
       scene.add(spot);
-      return { station, qr, spot, sway, shimmer, got: false };
+      return { station, qr, spot, sway, shimmer, ghost, got: false };
     });
     aimFor = 0;
   };
@@ -350,6 +407,7 @@ export async function createArStage(
       camOn = true;
       showVirtual(false);
       ev.onCamera("on");
+      if (phase === "searching" && !active) place(); // walking can be read now: spread them out
     } catch (e) {
       ev.onCamera(e instanceof DOMException && e.name === "NotAllowedError" ? "denied" : "unavailable");
     }
@@ -433,7 +491,7 @@ export async function createArStage(
   const ndc = new THREE.Vector3();
   let lastTime = -1;
 
-  const guide = () => {
+  const guide = (away: number | null) => {
     const blips: Guide["blips"] = [];
     let best: { a: number; x: number; y: number; ahead: boolean; target: boolean } | null = null;
     for (const c of codes) {
@@ -457,7 +515,7 @@ export async function createArStage(
     if (turn !== lastTurn || now - guideAt > 0.1) {
       guideAt = now;
       lastTurn = turn;
-      ev.onGuide({ blips, turn, sensors: sensors || xr });
+      ev.onGuide({ blips, turn, sensors: sensors || xr, away });
     }
   };
 
@@ -527,26 +585,34 @@ export async function createArStage(
     }
 
     if (phase === "searching") {
-      guide();
-      // Is a hidden code held inside the scan frame? Or at least on screen (near)?
+      // Is a hidden code held inside the scan frame, close enough to reveal (or too far: walk up to
+      // it)? Or at least on screen and in reach (near)?
       let aimed: Hidden | null = null;
+      let away: number | null = null;
       let close = false;
-      const reach = near ? NEAR_OUT : 1;
+      const reach = xr ? XR_REACH : REACH;
+      const out = near ? NEAR_OUT : 1;
+      const glint = 0.25 + 0.25 * Math.sin(now * 9);
       for (const c of codes) {
         if (c.got) continue;
         v.copy(c.spot.position).applyMatrix4(cam.matrixWorldInverse);
         ndc.copy(c.spot.position).project(cam);
+        const d = v.length();
         // A faint shimmer gives it away once it's on screen
-        c.shimmer.visible = v.z < 0 && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1;
-        if (v.z < 0 && Math.abs(ndc.x) < AIM_X && Math.abs(ndc.y) < AIM_Y) aimed = c;
-        if (v.z < 0 && Math.abs(ndc.x) < reach && Math.abs(ndc.y) < reach) close = true;
+        const seen = v.z < 0 && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1;
+        c.shimmer.visible = c.ghost.visible = seen;
+        (c.shimmer.material as THREE.PointsMaterial).opacity = glint;
+        if (seen && d > reach) away = Math.min(away ?? Infinity, d);
+        else if (d <= reach && v.z < 0 && Math.abs(ndc.x) < AIM_X && Math.abs(ndc.y) < AIM_Y) aimed = c;
+        if (d <= reach && v.z < 0 && Math.abs(ndc.x) < out && Math.abs(ndc.y) < out) close = true;
       }
       setNear(close);
-      shimmerMat.opacity = 0.25 + 0.25 * Math.sin(now * 9);
+      ghostMat.opacity = 0.28 + 0.1 * Math.sin(now * 2.4);
+      guide(aimed ? null : away);
       aimFor = aimed ? aimFor + dt : 0;
       if (aimed && aimFor > AIM_S) {
         active = aimed;
-        for (const c of codes) c.shimmer.visible = false;
+        for (const c of codes) c.shimmer.visible = c.ghost.visible = false;
         active.qr.root.visible = true;
         active.spot.add(fx);
         const tint = RARITY_HEX[active.station.rarity];
@@ -694,7 +760,10 @@ export async function createArStage(
       zoom.dispose();
       stream?.getTracks().forEach((t) => t.stop());
       if (stream && video.srcObject === stream) video.srcObject = null; // (not another scanner's feed)
-      for (const c of codes) c.qr.dispose();
+      for (const c of codes) {
+        c.qr.dispose();
+        (c.shimmer.material as THREE.Material).dispose();
+      }
       disposables.forEach((d) => d.dispose());
       renderer.dispose();
       el.remove();

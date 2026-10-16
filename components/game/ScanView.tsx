@@ -32,8 +32,8 @@ function pickHidden(found: Record<string, number>, target?: Station) {
 
 /**
  * Full-screen AR scanner. The hunt's QR codes are virtual: a few of the ones still to find are hidden
- * around the player, invisible until the camera is held on their spot. Then the code assembles in 3D
- * and a tap collects it. No set order: whichever code is fully scanned first is the one collected,
+ * around the player, one near and the others farther off, invisible until the camera is held on their
+ * spot from close enough (too far: "walk closer"). Then the code assembles in 3D and a tap collects it. No set order: whichever code is fully scanned first is the one collected,
  * even when the player came looking for a different one. All 8 codes sit in a strip at the bottom
  * with one selected (the one they came for, else the first still to find): tap another to look for
  * it instead. Its clue shows, and the test radar shows only it.
@@ -123,7 +123,10 @@ export function ScanView({
   let hint: ReactNode = "Starting AR…";
   if (failed) hint = "AR isn't available in this browser.";
   else if (phase === "searching") {
-    hint = help?.turn ? (
+    const away = guide?.away;
+    hint = away ? (
+      `A QR code is about ${Math.max(1, Math.round(away))} m ahead: walk closer`
+    ) : help?.turn ? (
       help.turn === "left" || help.turn === "right" ? (
         `${chosen ? `QR code #${pad2(chosen.num)}` : "A QR code"} ${TURN_HINT[help.turn]}`
       ) : (

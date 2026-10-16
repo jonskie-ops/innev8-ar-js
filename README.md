@@ -36,8 +36,8 @@ site is playable now; set it to `false` for the real launch.
 1. Tapping **Scan** opens the AR view (`components/game/ScanView.tsx`, 3D layer in `components/game/ar/`,
    built with [three.js](https://threejs.org)) and hides up to 3 of the player's unfound codes around them.
 2. **Android (Chrome on ARCore phones):** the scanner starts a WebXR AR session, which tracks the
-   phone's movement. Codes are ~60 cm panels 2 m away, fixed in the room: back away and they shrink,
-   walk up and they grow. If the browser needs a fresh tap to start AR, a **Start full AR** button
+   phone's movement. Codes are ~60 cm panels 2 to 5 m away, fixed in the room: back away and they
+   shrink, walk up and they grow. If the browser needs a fresh tap to start AR, a **Start full AR** button
    appears; the phone's back button ends AR and closes the scanner.
    **Everywhere else (iPhone, Android phones without ARCore, in-app browsers like Messenger's):** the
    motion sensors keep the codes fixed in the room as the phone turns (like Pokémon GO's AR; without
@@ -49,9 +49,14 @@ site is playable now; set it to `false` for the real launch.
    (Find it), else the first still to find. Tap another to look for it instead: its clue shows
    above the strip, and in test mode the radar shows only it (blinking). It's hidden around you
    straight away if it wasn't already; the camera keeps running. Any code you find still counts.
-3. Each code is invisible until it's held in the scan frame for half a second, then it assembles from
-   glowing blocks into a 3D QR code (`ar/qr3d.ts`, its pattern generated from the code's value).
-   Tapping it collects it and the catch card opens. Progress is saved on the device (localStorage).
+3. The codes are spread out: one near (about 3 m), the others farther off (up to about 9 m; 5 m with
+   WebXR), between chest and head height. Until revealed, a code is only a faint "?" outline and a
+   shimmer, small from far away and bigger as you walk up. It reveals once you're close enough
+   (about 4 m; 2.6 m with WebXR) and hold it in the scan frame for half a second; farther off, the
+   hint says "A QR code is about 6 m ahead: walk closer" and Qufoo keeps sniffing. Then it assembles
+   from glowing blocks into a 3D QR code (`ar/qr3d.ts`, its pattern generated from the code's value)
+   and stays put as you move. Tapping it collects it and the catch card opens. Without a camera
+   (walking can't be read) every code is near. Progress is saved on the device (localStorage).
 
 **Placement is a test stand-in:** codes go at random spots around the player each time the scanner
 opens. Pinning each code to its real spot at the venue (e.g. image anchors on existing banners and
