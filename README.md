@@ -57,20 +57,28 @@ The camera only works on a secure page: `https://…` or `http://localhost`. Ove
 `http://192.168.x.x` the scanner shows a virtual room instead (drag to look). iPhone asks for motion
 access when Scan is tapped.
 
-## The mascot
+## Qufoo, the mascot
 
-After the splash, the QR hunting buddy (a talking Dalmatian) rises from the bottom of the screen and
-says a few lines: a welcome for new players, progress for returning ones (`components/Mascot.tsx`).
-Each line types out while he talks; lines move on by themselves or with a tap, and Skip (or Esc)
-sends him away. He stays away when a QR code link opens the scanner.
+After the splash, Qufoo, the QR hunting buddy (a talking Dalmatian), rises from the bottom of the
+screen and talks in a speech bubble (`components/Mascot.tsx`). Each line types out while he talks
+and waits for a tap (no timers); Skip or Esc sends him away. He stays away when a QR code link
+opens the scanner.
 
+- **New players:** a hello after the splash, then a small Qufoo above the sign-up's Next button
+  says what to do on each step (name, province, Let's Go). Then he tours the menu: right after
+  sign-up he explains the hunt and the Map, and the first time each menu button is tapped (Codes,
+  Quests, Me, Scan) he explains what's there; for Scan, the scanner opens when he's done. Each part
+  is explained once (saved with the profile; Delete Profile starts the tour over). Players who
+  signed up before the tour existed don't get it.
+- **Returning players:** welcome back, and how many codes they've found.
 - **Animation:** `public/assets/img/mascot/talk.webp` is a 2.4 s talking loop cut out of the
   original GIF (36 frames as a sprite sheet, 516 KB instead of the GIF's 10.9 MB), drawn on a
   canvas so he can stop on a closed mouth when he's quiet; `idle.webp` is its first frame.
   To rebuild them from a new GIF on a white background: `node scripts/mascot.mjs <file.gif>`
   (uses `sharp`, which comes with Next.js), then copy the two numbers it prints into `Mascot.tsx`.
-- **Voice:** give a line an `audio` URL in `linesFor()` (e.g. `{ text: "...", audio: "/assets/voice/hello.mp3" }`)
-  and he talks for as long as the clip plays. Phones block sound until the first tap, so if the
+- **Voice:** give a line an `audio` URL in `introTalk()` / `welcomeTalk()` (e.g.
+  `{ text: "...", audio: "/assets/voice/hello.mp3" }`) and he talks for as long as the clip plays
+  (the sign-up guide's lines in `signUpGuide()` are text only for now). Phones block sound until the first tap, so if the
   splash ended on its own, that line runs as text only.
 
 ## Before the event

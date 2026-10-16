@@ -1,11 +1,14 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- a 20 KB still shown until the talking sprite is ready */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { prefersReducedMotion } from "@/lib/dom";
 import { STATIONS, TOTAL } from "@/lib/hunt";
-import { useProgress, type Progress } from "@/lib/store";
+import { progress, useProgress, type Progress } from "@/lib/store";
 import { useSplashDone } from "./Splash";
+
+/** The mascot's name. */
+export const MASCOT = "Qufoo";
 
 /** One thing the mascot says. Add `audio` (a voice clip URL) and he talks for as long as it plays. */
 export type Line = { text: string; audio?: string };
@@ -18,39 +21,167 @@ const TALK = { src: "/assets/img/mascot/talk.webp", cols: 6, frames: 36, w: 320,
 const REST = new Set([0, 1, 2, 3, 4, 17, 18, 19, 20, 26]);
 const IDLE = "/assets/img/mascot/idle.webp"; // frame 0 on its own: shown until the sprite is ready
 const CPS = 34; // typing speed, characters per second
-const PAUSE_MS = 1500; // a finished line stays up this long (plus a little per character), then the next one
 const LOAD_WAIT_MS = 4000; // after the splash, wait at most this long for the sprite
 const RISE_MS = 700;
 const LEAVE_MS = 450;
+const MAP_DELAY_MS = 500; // after sign-up, let the map appear before he comes up
 
 type Screen = "countdown" | "game";
 type Stage = "wait" | "in" | "on" | "out" | "gone";
+/**
+ * What he's saying; whether the sign-up guide takes over after the last line; and what happens once
+ * he's done (Scan: the scanner opens).
+ */
+type Talk = { lines: Line[]; guideNext: boolean; then?: () => void };
 
-function linesFor(screen: Screen, p: Progress): Line[] {
+const signedUp = (p: Progress) => p.onboarded && p.province !== "";
+
+/** Straight after the splash. A new player gets a hello, then the sign-up guide carries on. */
+function introTalk(screen: Screen, p: Progress): Talk {
   const name = p.name.trim();
   if (screen === "countdown")
-    return [
-      { text: name ? `Hi, ${name}! I'm your QR hunting buddy.` : "Hi! I'm your QR hunting buddy." },
-      { text: "The hunt opens on November 20 at the summit. See you there!" },
-    ];
-  if (!p.onboarded || !p.province)
-    return [
-      { text: "Hi! I'm your QR hunting buddy." },
-      { text: `${TOTAL} INNEV8 QR codes are hiding around the summit, and only your camera can see them.` },
-      { text: "Let's get you signed up first!" },
-    ];
+    return {
+      lines: [
+        { text: name ? `Hi, ${name}! I'm ${MASCOT}, your QR hunting buddy.` : `Hi! I'm ${MASCOT}, your QR hunting buddy.` },
+        { text: "The hunt opens on November 20 at the summit. See you there!" },
+      ],
+      guideNext: false,
+    };
+  if (!signedUp(p))
+    return {
+      lines: [{ text: `Hi! I'm ${MASCOT}, your QR hunting buddy.` }, { text: "Let's get you signed up first!" }],
+      guideNext: true,
+    };
   const found = STATIONS.filter((s) => p.found[s.id]).length;
-  return [
-    { text: `Welcome back, ${name}!` },
-    {
-      text:
-        found === TOTAL
-          ? `You found all ${TOTAL} QR codes! Your prize is waiting in Codes.`
-          : found === 0
-            ? `${TOTAL} QR codes are waiting for you. Tap Scan and look around!`
-            : `You've found ${found} of ${TOTAL}. ${TOTAL - found} more to go: tap Scan and look around!`,
+  return {
+    lines: [
+      { text: `Welcome back, ${name}!` },
+      {
+        text:
+          found === TOTAL
+            ? `You found all ${TOTAL} QR codes! Your prize is waiting in Codes.`
+            : found === 0
+              ? `${TOTAL} QR codes are waiting for you. Tap Scan and look around!`
+              : `You've found ${found} of ${TOTAL}. ${TOTAL - found} more to go: tap Scan and look around!`,
+      },
+    ],
+    guideNext: false,
+  };
+}
+
+/** The parts of the menu Qufoo shows new players, the first time each is tapped. */
+export type TourStop = "map" | "dex" | "quests" | "me" | "scan";
+const TOUR_STOPS: TourStop[] = ["map", "dex", "quests", "me", "scan"];
+
+/** His tour of the menu: the map right after sign-up, then each menu button the first time it's tapped. */
+function tourTalk(stop: TourStop, p: Progress, then?: () => void): Talk {
+  const name = p.name.trim();
+  const lines: Line[] = {
+    map: [
+      { text: `Welcome to the hunt, ${name}! Let me show you around.` },
+      { text: `${TOTAL} INNEV8 QR codes are hiding around the summit, and only your camera can see them.` },
+      { text: "This is the Map of the venue. Each number marks where a QR code is hiding: tap one to read its clue." },
+      { text: "Now try the menu below. Tap any button and I'll tell you what it's for!" },
+    ],
+    dex: [
+      { text: `This is your QR Collection: all ${TOTAL} codes, with the ones you've found lit up.` },
+      { text: "Tap a code to read its clue, then Find it to go look for it." },
+      { text: `Collect all ${TOTAL} to unlock your prize!` },
+    ],
+    quests: [
+      { text: "These are your Quests: goals like scanning your first code or finding the legendary gold one." },
+      { text: "Each one fills up as you collect QR codes. Can you finish them all?" },
+    ],
+    me: [
+      { text: "This is your profile: your points, your QR codes and your details." },
+      { text: "Tap Edit Profile any time to change your name or province." },
+    ],
+    scan: [
+      { text: "Scan opens your camera. The QR codes are hidden around the venue, and only your camera can see them." },
+      { text: "Look around slowly. When a code appears in the frame, hold steady while it builds up." },
+      { text: "Then tap it to collect it. Ready? Let's go!" },
+    ],
+  }[stop];
+  const toured = new Set([...(p.tour ?? []), stop]);
+  if (stop !== "scan" && TOUR_STOPS.every((s) => toured.has(s)))
+    lines.push({ text: `That's the whole tour, ${name}. Happy hunting!` });
+  return { lines, guideNext: false, then };
+}
+
+// ---- The game asks him to explain a menu button
+let onExplain: ((stop: TourStop, then?: () => void) => boolean) | null = null;
+/**
+ * The game calls this when a new player taps a menu button Qufoo hasn't explained yet. He explains
+ * it, then `then` runs (for Scan: the scanner opens, still within the tap). If he can't (he's
+ * already talking, or not on screen), `then` runs straight away.
+ */
+export function explainMenu(stop: TourStop, then?: () => void) {
+  if (!onExplain?.(stop, then)) then?.();
+}
+
+/** What he says on each sign-up step (components/game/Onboarding.tsx). */
+export const signUpGuide = (step: number, name: string) =>
+  [
+    "Type your name above and tap Next.",
+    "Now pick your province, then tap Next.",
+    `You're all set, ${name.trim()}! Tap Let's Go to start the hunt.`,
+  ][step] ?? "";
+
+// ---- The sign-up guide waits until the hello after the splash is over
+let introOver = false;
+const introListeners = new Set<() => void>();
+function endIntro() {
+  if (introOver) return;
+  introOver = true;
+  introListeners.forEach((l) => l());
+}
+const useIntroOver = () =>
+  useSyncExternalStore(
+    (l) => {
+      introListeners.add(l);
+      return () => introListeners.delete(l);
     },
-  ];
+    () => introOver,
+    () => false,
+  );
+
+// ---- Shared by both: the sprite (fetched once), the talking dog, the typing
+let spriteLoad: Promise<HTMLImageElement> | null = null;
+function useSprite(enabled: boolean) {
+  const [sprite, setSprite] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    if (!spriteLoad) {
+      const img = new Image();
+      img.src = TALK.src;
+      spriteLoad = img.decode().then(() => img);
+    }
+    spriteLoad
+      .then((img) => alive && setSprite(img))
+      .catch(() => {
+        spriteLoad = null; // try again next time
+      });
+    return () => {
+      alive = false;
+    };
+  }, [enabled]);
+  return sprite;
+}
+
+const useReducedMotion = () => useState(() => typeof window !== "undefined" && prefersReducedMotion())[0];
+
+/** Types `text` out while `run`; starts over whenever the text changes. */
+function useTyping(text: string, run: boolean, instant: boolean) {
+  const [state, setState] = useState({ text, n: 0 });
+  const n = state.text === text ? state.n : 0;
+  useEffect(() => {
+    if (!run || instant || n >= text.length) return;
+    const id = window.setTimeout(() => setState({ text, n: n + 1 }), 1000 / CPS);
+    return () => clearTimeout(id);
+  }, [run, instant, n, text]);
+  const typed = instant ? text.length : n;
+  return { typed, done: typed >= text.length, finish: () => setState({ text, n: text.length }) };
 }
 
 /** Plays the talking loop on a canvas while `talking`; when he stops, he finishes on the next closed mouth. */
@@ -94,62 +225,104 @@ function useTalkLoop(canvas: React.RefObject<HTMLCanvasElement | null>, sprite: 
   }, [canvas, sprite, talking]);
 }
 
+function QufooDog({ sprite, talking }: { sprite: HTMLImageElement | null; talking: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useTalkLoop(canvasRef, sprite, talking);
+  return sprite ? (
+    <canvas ref={canvasRef} width={TALK.w} height={TALK.h} />
+  ) : (
+    <img src={IDLE} alt="" width={TALK.w} height={TALK.h} />
+  );
+}
+
+/** The line typed so far, with the rest held invisible so the bubble doesn't grow as it types. */
+function Typed({ text, typed, className }: { text: string; typed: number; className: string }) {
+  return (
+    <>
+      <p className={className} aria-hidden="true">
+        {text.slice(0, typed)}
+        <span className="qufoo-unsaid">{text.slice(typed)}</span>
+      </p>
+      <p className="qufoo-sr" aria-live="polite">
+        {text}
+      </p>
+    </>
+  );
+}
+
 /**
- * The QR hunting buddy: once the splash has cleared, he rises from the bottom of the screen and
- * says a few lines (a greeting for new players, progress for returning ones), typing each one out
- * while he talks. Lines move on by themselves or with a tap; Skip (or Esc) sends him away. He stays
- * away when a QR code link opens the scanner straight after the splash.
+ * Qufoo, the QR hunting buddy, as a dialogue over the app: he rises from the bottom of the screen
+ * and says a few lines, typing each one out while he talks; a tap finishes the line or moves on,
+ * Skip (or Esc) sends him away. He comes up once the splash has cleared (a hello for new players,
+ * progress for returning ones); for new players he then tours the menu: the map right after
+ * sign-up, and each menu button the first time it's tapped (see explainMenu). He stays away when a
+ * QR code link opens the scanner.
  */
 export function Mascot({ screen }: { screen: Screen }) {
   const splashDone = useSplashDone();
   const progressNow = useProgress();
-  // Decided once, on the first render: a signed-up player arriving from a QR code link goes straight to the scanner.
-  const [skip] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      progressNow.onboarded &&
-      progressNow.province !== "" &&
-      new URLSearchParams(location.search).has("s"),
-  );
+  const reduced = useReducedMotion();
+  // Decided on the first render, before the game takes the link out of the address bar
+  const [deepLink] = useState(() => typeof window !== "undefined" && new URLSearchParams(location.search).has("s"));
+  const skipIntro = deepLink && signedUp(progressNow);
   const [stage, setStage] = useState<Stage>("wait");
-  const [lines, setLines] = useState<Line[]>([]);
+  const [talk, setTalk] = useState<Talk>({ lines: [], guideNext: false });
   const [index, setIndex] = useState(0);
-  const [shown, setShown] = useState(0);
   const [voice, setVoice] = useState(false); // a voice clip is playing
-  const [sprite, setSprite] = useState<HTMLImageElement | null>(null);
   const [waited, setWaited] = useState(false);
-  const [reduced] = useState(() => typeof window !== "undefined" && prefersReducedMotion());
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sprite = useSprite(!skipIntro);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Fetch the talking sprite while the splash is still up
-  useEffect(() => {
-    if (skip) return;
-    let alive = true;
-    const img = new Image();
-    img.src = TALK.src;
-    img
-      .decode()
-      .then(() => alive && setSprite(img))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [skip]);
 
   // After the splash: come up as soon as the sprite is ready (or, failing that, with the still)
   useEffect(() => {
-    if (skip || !splashDone || stage !== "wait") return;
+    if (stage !== "wait") return;
+    if (skipIntro) {
+      endIntro();
+      return;
+    }
+    if (!splashDone) return;
     if (!sprite && !waited) {
       const id = window.setTimeout(() => setWaited(true), LOAD_WAIT_MS);
       return () => clearTimeout(id);
     }
     const id = window.setTimeout(() => {
-      setLines(linesFor(screen, progressNow));
+      setTalk(introTalk(screen, progressNow));
+      setIndex(0);
       setStage("in");
     }, 0);
     return () => clearTimeout(id);
-  }, [skip, splashDone, stage, sprite, waited, screen, progressNow]);
+  }, [skipIntro, splashDone, stage, sprite, waited, screen, progressNow]);
+
+  // Right after sign-up, on the map: the first stop of his tour
+  const wasSignedUp = useRef(signedUp(progressNow));
+  useEffect(() => {
+    const now = signedUp(progressNow);
+    const justSignedUp = now && !wasSignedUp.current;
+    wasSignedUp.current = now;
+    if (!justSignedUp || deepLink) return;
+    const id = window.setTimeout(() => {
+      setTalk(tourTalk("map", progressNow));
+      setIndex(0);
+      setStage("in");
+      progress.toured("map");
+    }, MAP_DELAY_MS);
+    return () => clearTimeout(id);
+  }, [progressNow, deepLink]);
+
+  // The game asks him to explain a menu button (with the latest stage and progress, every render)
+  useEffect(() => {
+    onExplain = (stop, then) => {
+      if (stage === "in" || stage === "on") return false;
+      setTalk(tourTalk(stop, progressNow, then));
+      setIndex(0);
+      setStage("in");
+      progress.toured(stop);
+      return true;
+    };
+    return () => {
+      onExplain = null;
+    };
+  });
 
   useEffect(() => {
     if (stage !== "in") return;
@@ -163,17 +336,9 @@ export function Mascot({ screen }: { screen: Screen }) {
     return () => clearTimeout(id);
   }, [stage, reduced]);
 
-  const line = lines[index];
+  const line = talk.lines[index];
   const text = line?.text ?? "";
-  const typed = reduced ? text.length : shown;
-  const lineDone = typed >= text.length && !voice;
-
-  // Type the line out
-  useEffect(() => {
-    if (stage !== "on" || typed >= text.length) return;
-    const id = window.setTimeout(() => setShown((n) => n + 1), 1000 / CPS);
-    return () => clearTimeout(id);
-  }, [stage, typed, text]);
+  const { typed, done, finish } = useTyping(text, stage === "on", reduced);
 
   // Voice clip, when the line has one. If the browser won't play sound yet (no tap since the page
   // opened), the line just runs as text.
@@ -190,66 +355,63 @@ export function Mascot({ screen }: { screen: Screen }) {
     };
   }, [stage, line]);
 
-  const leave = () => setStage((s) => (s === "on" || s === "in" ? "out" : s));
+  const ran = useRef<Talk | null>(null);
+  const leave = () => {
+    if (stage !== "on" && stage !== "in") return;
+    setStage("out");
+    if (talk.guideNext) endIntro(); // the sign-up guide pops up as he goes down
+    if (ran.current !== talk) {
+      ran.current = talk;
+      talk.then?.(); // e.g. open the scanner, still within this tap
+    }
+  };
+  // No timers: every line waits for a tap. The first tap finishes typing, the next moves on.
   const next = () => {
     if (stage !== "on") return;
-    if (typed < text.length) return setShown(text.length); // first tap: finish the line
+    if (!done) return finish();
     audioRef.current?.pause();
-    if (index < lines.length - 1) {
-      setIndex(index + 1);
-      setShown(0);
-    } else leave();
+    if (index < talk.lines.length - 1) setIndex(index + 1);
+    else leave();
   };
-  const nextRef = useRef(next);
+  const keys = useRef({ next, leave });
   useEffect(() => {
-    nextRef.current = next;
+    keys.current = { next, leave };
   });
-
-  // A finished line moves on by itself after a pause
-  useEffect(() => {
-    if (stage !== "on" || !lineDone) return;
-    const id = window.setTimeout(() => nextRef.current(), PAUSE_MS + text.length * 20);
-    return () => clearTimeout(id);
-  }, [stage, lineDone, text, index]);
 
   // Keyboard: Enter or Space for the next line, Esc to send him away
   useEffect(() => {
     if (stage !== "on") return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setStage("out");
+      if (e.key === "Escape") keys.current.leave();
       else if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        nextRef.current();
+        keys.current.next();
       }
     };
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
   }, [stage]);
 
-  const talking = !reduced && stage === "on" && (typed < text.length || voice);
-  useTalkLoop(canvasRef, stage === "wait" || stage === "gone" ? null : sprite, talking);
-
   if (stage === "wait" || stage === "gone") return null;
+  const last = index === talk.lines.length - 1;
+  const talking = !reduced && stage === "on" && (!done || voice);
 
   return (
-    <div className={`host is-${stage}`} role="dialog" aria-label="Your QR hunting buddy" onClick={next}>
+    <div className={`host is-${stage}`} role="dialog" aria-label={`${MASCOT}, your QR hunting buddy`} onClick={next}>
       <div className="host__stage">
         <div className="host__bubble">
-          <p className="host__text" aria-hidden="true">
-            {text.slice(0, typed)}
-            <span className="host__unsaid">{text.slice(typed)}</span>
-          </p>
-          <p className="host__sr" aria-live="polite">
-            {stage === "on" ? text : ""}
-          </p>
+          <span className="qufoo-name" aria-hidden="true">
+            {MASCOT}
+          </span>
+          <Typed text={text} typed={typed} className="host__text" />
           <div className="host__foot">
             <span className="host__dots" aria-hidden="true">
-              {lines.map((_, i) => (
+              {talk.lines.map((_, i) => (
                 <i key={i} className={i <= index ? "is-on" : undefined}></i>
               ))}
             </span>
             <span className="host__hint" aria-hidden="true">
-              {index < lines.length - 1 ? "Tap to continue" : "Tap to close"}
+              {!done ? "" : last && !talk.guideNext ? "Tap to close" : "Tap to continue"}
             </span>
           </div>
           <button
@@ -264,12 +426,33 @@ export function Mascot({ screen }: { screen: Screen }) {
           </button>
         </div>
         <div className="host__dog" aria-hidden="true">
-          {sprite ? (
-            <canvas ref={canvasRef} width={TALK.w} height={TALK.h} />
-          ) : (
-            <img src={IDLE} alt="" width={TALK.w} height={TALK.h} />
-          )}
+          <QufooDog sprite={sprite} talking={talking} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Qufoo on the sign-up screens: a small Qufoo above the Next button saying what to do on this
+ * step. Part of the page (nothing is covered); he shows up once the hello after the splash is over.
+ */
+export function QufooGuide({ text }: { text: string }) {
+  const show = useIntroOver();
+  const reduced = useReducedMotion();
+  const sprite = useSprite(show);
+  const { typed, done } = useTyping(text, show, reduced);
+  if (!show || !text) return null;
+  return (
+    <div className="qguide">
+      <div className="qguide__bubble">
+        <span className="qufoo-name" aria-hidden="true">
+          {MASCOT}
+        </span>
+        <Typed text={text} typed={typed} className="qguide__text" />
+      </div>
+      <div className="qguide__dog" aria-hidden="true">
+        <QufooDog sprite={sprite} talking={!reduced && !done} />
       </div>
     </div>
   );

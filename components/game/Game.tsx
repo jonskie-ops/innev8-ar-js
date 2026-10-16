@@ -6,6 +6,7 @@ import { askMotion } from "@/lib/motion";
 import { TEST_MODE } from "@/lib/site";
 import { progress, useProgress } from "@/lib/store";
 import { CountdownSection } from "../CountdownSection";
+import { explainMenu, type TourStop } from "../Mascot";
 import type { Phase } from "../Countdown";
 import { CatchCard } from "./CatchCard";
 import { DexView } from "./DexView";
@@ -80,10 +81,21 @@ export function Game({ phase }: { phase: Phase }) {
     const id = window.setTimeout(() => void import("./ar/stage"), 2500);
     return () => clearTimeout(id);
   }, []);
-  // Opened by a tap, so iPhone can ask for the motion sensors the AR view turns with.
+  // New players: the first time each menu button is tapped, Qufoo explains it
+  const onTour = (stop: TourStop) => p.tour !== undefined && !p.tour.includes(stop);
+  const selectTab = (id: Tab) => {
+    setTab(id);
+    if (onTour(id)) explainMenu(id);
+  };
+  // Opened by a tap, so iPhone can ask for the motion sensors the AR view turns with. The first time,
+  // Qufoo explains scanning first, and the scanner opens with the tap that closes him.
   const openScan = (target?: Station) => {
-    askMotion();
-    setScan({ target });
+    const open = () => {
+      askMotion();
+      setScan({ target });
+    };
+    if (onTour("scan")) explainMenu("scan", open);
+    else open();
   };
   const onCatch = useCallback((station: Station) => {
     progress.collect(station.id);
@@ -166,7 +178,7 @@ export function Game({ phase }: { phase: Phase }) {
           />
         </svg>
         {TABS.slice(0, 2).map((t) => (
-          <TabButton key={t.id} tab={t} active={tab === t.id} onSelect={setTab} />
+          <TabButton key={t.id} tab={t} active={tab === t.id} onSelect={selectTab} />
         ))}
         <button type="button" className="tabbar__scan" onClick={() => openScan()}>
           <span className="tabbar__scan-ring" aria-hidden="true">
@@ -175,7 +187,7 @@ export function Game({ phase }: { phase: Phase }) {
           <span>Scan</span>
         </button>
         {TABS.slice(2).map((t) => (
-          <TabButton key={t.id} tab={t} active={tab === t.id} onSelect={setTab} />
+          <TabButton key={t.id} tab={t} active={tab === t.id} onSelect={selectTab} />
         ))}
       </nav>
 

@@ -10,6 +10,11 @@ export type Progress = {
   onboarded: boolean;
   /** Station id → time its QR code was collected (ms since epoch). */
   found: Record<string, number>;
+  /**
+   * Qufoo's tour of the menu for new players: the parts he has already explained ("map", "dex",
+   * "quests", "me", "scan"). Missing for players who signed up before the tour existed: no tour.
+   */
+  tour?: string[];
 };
 
 const KEY = "i8ar-progress-v1";
@@ -59,7 +64,14 @@ export function useProgress() {
 export const progress = {
   /** Finishes sign-up. */
   start(name: string, province: string) {
-    write({ ...read(), name: name.trim().slice(0, 20), province, onboarded: true });
+    const p = read();
+    write({ ...p, name: name.trim().slice(0, 20), province, onboarded: true, tour: p.tour ?? [] });
+  },
+  /** Qufoo has explained this part of the menu. */
+  toured(stop: string) {
+    const p = read();
+    if (!p.tour || p.tour.includes(stop)) return;
+    write({ ...p, tour: [...p.tour, stop] });
   },
   rename(name: string) {
     write({ ...read(), name: name.trim().slice(0, 20) });

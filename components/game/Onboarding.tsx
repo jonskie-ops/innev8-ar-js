@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { PROVINCES } from "@/lib/site";
 import { progress, useProgress } from "@/lib/store";
+import { QufooGuide, signUpGuide } from "../Mascot";
 import { ArrowLeftIcon, ArrowRightIcon } from "./icons";
 import { QrGlyph } from "./QrGlyph";
 
@@ -10,7 +11,8 @@ const STEPS = 3; // name → province → ready
 
 /**
  * First-launch sign-up, one question per screen: name, then province, then a short how-to-play.
- * A returning player who has a name but no province starts at the province step.
+ * A returning player who has a name but no province starts at the province step. Qufoo stands above
+ * the Next button saying what to do on each step.
  */
 export function Onboarding() {
   const saved = useProgress();
@@ -132,6 +134,7 @@ export function Onboarding() {
       </div>
 
       <div className="wizard__foot">
+        <QufooGuide text={signUpGuide(step, name)} />
         <button type="submit" className="btn btn--primary btn--block" disabled={!canNext}>
           {step < STEPS - 1 ? (
             <>
