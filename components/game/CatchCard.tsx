@@ -1,25 +1,31 @@
 "use client";
 
 import { pad2 } from "@/lib/dom";
-import { POINTS, RARITY_LABEL, TOTAL, zoneName, type Station } from "@/lib/hunt";
+import { RARITY_LABEL, zoneName, type Prize, type Station } from "@/lib/hunt";
+import { useHunt } from "@/lib/huntStore";
 import { QrTile } from "./QrTile";
 
-/** Shown right after a QR code is collected. */
+/** Shown right after a QR code is collected (and, if that catch won a prize, the way to it). */
 export function CatchCard({
   station,
   count,
+  total,
+  won,
   onHunt,
   onDex,
   onPrize,
 }: {
   station: Station;
   count: number;
+  total: number;
+  /** A prize this catch won. */
+  won: Prize | null;
   /** Keep hunting: back to scanning. */
   onHunt: () => void;
   onDex: () => void;
-  onPrize: () => void;
+  onPrize: (prize: Prize) => void;
 }) {
-  const complete = count >= TOTAL;
+  const { hunt } = useHunt();
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="catch-title">
       <div className={`catch catch--${station.rarity}`}>
@@ -33,21 +39,21 @@ export function CatchCard({
         </p>
         <h2 id="catch-title">{station.name}</h2>
         <p className="catch__spot">
-          {zoneName(station.zone)} · {station.spot}
+          {zoneName(hunt, station.zone)} · {station.spot}
         </p>
         <p className="catch__blurb">{station.blurb}</p>
         <div className="catch__stats">
           <span>
-            <b>+{POINTS[station.rarity]}</b> pts
+            <b>+{station.points}</b> pts
           </span>
           <span>
-            <b>{count}</b>/{TOTAL} QR codes
+            <b>{count}</b>/{total} QR codes
           </span>
         </div>
         <div className="catch__btns">
-          {complete ? (
-            <button type="button" className="btn btn--primary" onClick={onPrize}>
-              Claim your prize
+          {won ? (
+            <button type="button" className="btn btn--primary" onClick={() => onPrize(won)}>
+              You won a prize!
             </button>
           ) : (
             <button type="button" className="btn btn--primary" onClick={onHunt}>

@@ -175,3 +175,13 @@ export function CameraOffIcon() {
     </svg>
   );
 }
+
+export function GiftIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3.5" y="8.5" width="17" height="4" rx="1" />
+      <path d="M5 12.5v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7M12 8.5v12" />
+      <path d="M12 8.5S10.5 4 8 4a2.25 2.25 0 0 0 0 4.5M12 8.5S13.5 4 16 4a2.25 2.25 0 0 1 0 4.5" />
+    </svg>
+  );
+}

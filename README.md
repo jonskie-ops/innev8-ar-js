@@ -3,7 +3,12 @@
 **INNEV8 QR Code Hunt** for the Regional ICT Summit 2026: a Pokémon GO–style game. **Players hunt for
 virtual INNEV8 QR codes hidden around the venue (a test sample of 8 for now).** Nothing is printed: each code is invisible until
 the phone's camera points at its spot, then it assembles into an animated 3D QR code (the AR part);
-tapping it collects it. Collect them all to win a prize.
+tapping it collects it, and collecting them wins the prizes the organisers set.
+
+**The organisers set the hunt in the admin** ([INNEV8-AR-ADMIN](../INNEV8-AR-ADMIN)): the QR codes
+(names, clues, spots, map pins, rarity, points, on or off), the zones, the prizes, the event dates,
+test mode and the prize desk. Both use the same Supabase database: the admin saves to it, and the
+game reads it (see "Where the hunt comes from" below).
 
 ## Run
 
@@ -17,9 +22,28 @@ npm run build && npm start   # production behaviour on :3200
 To open the dev server from another device, its origin must be in `allowedDevOrigins` in
 `next.config.ts` (currently `192.168.1.88`).
 
+## Where the hunt comes from
+
+- **`/api/hunt`** (`lib/hunt-server.ts`) reads the codes and prizes that are on, the zones and the
+  event settings from the admin's database, with its **public** key: the database only lets that key
+  see what players may see. It keeps the answer for 30 seconds and refreshes it in the background,
+  so the database is asked about twice a minute however many phones are playing.
+- **The phone** (`lib/huntStore.ts`) asks when the game opens, when it comes back to the front, when
+  the signal returns and every minute while it's open, and keeps the latest copy for offline. A
+  change saved in the admin shows up within about a minute.
+- **Codes turned off after a player found them** stay in their collection and keep counting toward
+  their points and prizes.
+- **Not set up, or no answer:** the phone keeps what it has. A phone that has never heard from the
+  admin plays the built-in 8-code sample in `lib/hunt.ts`.
+- **Settings:** `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (the admin's project URL and public
+  key; never the secret key), in `.env.local` here and under Vercel → Settings → Environment
+  Variables for the live site.
+
 ## Test mode vs production
 
-| | Test mode (`next dev`, or `NEXT_PUBLIC_TEST_MODE=true`) | Production |
+Test mode is the switch on the admin's Event page.
+
+| | Test mode | Production |
 | --- | --- | --- |
 | Before Nov 20, 8:00 AM | Hunt is playable. "The countdown is on." sits on the side: HUD timer chip and the Me tab | "The countdown is on." fills the screen; the hunt is locked |
 | From Nov 20, 8:00 AM | Hunt | Hunt (unlocks automatically) |
@@ -28,8 +52,9 @@ To open the dev server from another device, its origin must be in `allowedDevOri
 ## Deploy
 
 Hosted on Vercel from [github.com/jonskie-ops/innev8-ar-js](https://github.com/jonskie-ops/innev8-ar-js):
-every push to `main` redeploys. `.env.production` sets `NEXT_PUBLIC_TEST_MODE=true`, so the live
-site is playable now; set it to `false` for the real launch.
+every push to `main` redeploys. Test mode, the dates and everything else in the hunt are set in the
+admin; `.env.production`'s `NEXT_PUBLIC_TEST_MODE` is only what a phone starts with before it has heard
+from it.
 
 ## How a catch works
 
@@ -132,8 +157,8 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
 ## Before the event
 
 - **Venue map:** the building outlines are real (Leyte Convention Complex, Annex A, the east
-  driveway and parking, from OpenStreetMap, in `lib/venue.ts`). The rooms drawn inside them, the QR
-  spots and the clues in `lib/hunt.ts` are placeholders until the event floor plan is final.
+  driveway and parking, from OpenStreetMap, in `lib/venue.ts`). The rooms drawn inside them, and the
+  QR spots and clues (set in the admin), are placeholders until the event floor plan is final.
 - **Prize checks need a server.** Progress and the prize claim code live only on the player's phone,
   so they can't be verified yet.
 - **QR code values ship in the app's JavaScript**, so a determined player could find them. Server-side
@@ -155,9 +180,11 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
 | `components/game/DexView.tsx`, `QuestsView.tsx`, `MeView.tsx` | Codes (collection), Quests and Me tabs |
 | `components/game/CatchCard.tsx`, `PrizeCard.tsx`, `Onboarding.tsx` | Catch result, prize, first run |
 | `components/game/QrTile.tsx`, `QrGlyph.tsx` | Floating QR tiles; each code's decorative pattern |
-| `lib/hunt.ts` | The QR codes (8-code test sample): zones, clues, values, map positions, points |
+| `lib/hunt.ts` | The hunt's types, standings and prize rules, and the built-in 8-code sample |
+| `app/api/hunt/route.ts`, `lib/hunt-server.ts` | The hunt from the admin's database, kept 30 seconds |
+| `lib/huntStore.ts` | The hunt on the phone: checked for changes, kept for offline |
 | `lib/venue.ts` | Real building outlines for the map (© OpenStreetMap contributors, ODbL) |
 | `components/game/VenueMap.tsx` | 3D holographic venue map |
 | `lib/store.ts` | Saved progress |
-| `lib/site.ts` | Event dates, `TEST_MODE` |
+| `lib/site.ts` | The dates and test mode the game starts with (the admin's replace them) |
 | `app/globals.css`, `app/game.css` | Styles |

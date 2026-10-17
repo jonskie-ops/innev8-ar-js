@@ -2,8 +2,9 @@
 /* eslint-disable @next/next/no-img-element -- decorative cover photo, already sized for phones */
 
 import { useEffect, useRef, useState } from "react";
-import { levelOf, STATIONS, TOTAL } from "@/lib/hunt";
-import { PROVINCES, TEST_MODE } from "@/lib/site";
+import { levelOf, standing } from "@/lib/hunt";
+import { useHunt } from "@/lib/huntStore";
+import { PROVINCES } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
 import { GetApp } from "../GetApp";
@@ -58,10 +59,11 @@ export function MeView({
     if (editing) nameRef.current?.focus();
   }, [editing]);
 
-  const times = STATIONS.map((s) => found[s.id]).filter(Boolean);
-  const count = STATIONS.filter((s) => found[s.id]).length;
+  const { hunt, known } = useHunt();
+  const { count, total, kept } = standing(hunt, known, found);
+  const times = Object.values(found).filter(Boolean);
   // Found codes first (oldest first), then the ones still out there.
-  const strip = [...STATIONS]
+  const strip = [...hunt.stations, ...kept]
     .sort((a, b) => (found[a.id] || Infinity) - (found[b.id] || Infinity) || a.num - b.num)
     .slice(0, 4);
 
@@ -165,7 +167,7 @@ export function MeView({
           <div>
             <dt>QR codes</dt>
             <dd>
-              {count}/{TOTAL}
+              {count}/{total}
             </dd>
           </div>
           <div>
@@ -268,7 +270,7 @@ export function MeView({
             </span>
             <span className="psec__title">QR Codes</span>
             <span className="psec__meta">
-              {count}/{TOTAL}
+              {count}/{total}
             </span>
           </div>
           <div className="psec__strip">
@@ -295,7 +297,7 @@ export function MeView({
               <p className="psec__clock">
                 <MiniClock seconds />
               </p>
-              {TEST_MODE && (
+              {hunt.settings.testMode && (
                 <p className="test-note">
                   Test mode: the hunt is open early. In production, &ldquo;The countdown is on.&rdquo; fills the
                   screen until the summit starts.

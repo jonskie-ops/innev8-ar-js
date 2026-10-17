@@ -1,7 +1,8 @@
 "use client";
 
 import { pad2 } from "@/lib/dom";
-import { RARITY_LABEL, STATIONS, zoneName, type Station } from "@/lib/hunt";
+import { RARITY_LABEL, zoneName, type Station } from "@/lib/hunt";
+import { useHunt } from "@/lib/huntStore";
 import { CheckIcon, CloseIcon, ScanIcon } from "./icons";
 import { QrTile } from "./QrTile";
 import { VenueMap } from "./VenueMap";
@@ -19,7 +20,8 @@ export function MapView({
   /** Open the scanner looking for this code. */
   onScan: (station: Station) => void;
 }) {
-  const sel = STATIONS.find((s) => s.id === focus);
+  const { hunt } = useHunt();
+  const sel = hunt.stations.find((s) => s.id === focus);
 
   return (
     <div className="mapview">
@@ -39,7 +41,7 @@ export function MapView({
             </p>
             <h2>{found[sel.id] ? sel.name : `QR code #${sel.num}`}</h2>
             <p className="station__zone">
-              {zoneName(sel.zone)}
+              {zoneName(hunt, sel.zone)}
               {found[sel.id] && <> · {sel.spot}</>}
             </p>
             {found[sel.id] ? (

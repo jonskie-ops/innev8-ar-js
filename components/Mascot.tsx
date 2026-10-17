@@ -3,7 +3,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { prefersReducedMotion } from "@/lib/dom";
-import { STATIONS, TOTAL } from "@/lib/hunt";
+import { getHunt } from "@/lib/huntStore";
 import { progress, useProgress, type Progress } from "@/lib/store";
 import { anyClip, voiceFor } from "@/lib/voice";
 import { useSplashDone } from "./Splash";
@@ -80,14 +80,18 @@ function introTalk(screen: Screen, p: Progress): Talk {
       lines: [{ text: `Hi! I'm ${MASCOT}, your QR hunting buddy.` }, { text: "Let's get you signed up first!" }],
       guideNext: true,
     };
-  const found = STATIONS.filter((s) => p.found[s.id]).length;
+  const { hunt } = getHunt();
+  const TOTAL = hunt.stations.length;
+  const found = hunt.stations.filter((s) => p.found[s.id]).length;
   return {
     lines: [
       { text: `Welcome back, ${name}!`, say: "Welcome back!" },
       {
         text:
-          found === TOTAL
-            ? `You found all ${TOTAL} QR codes! Your prize is waiting in Codes.`
+          TOTAL > 0 && found === TOTAL
+            ? hunt.prizes.length
+              ? `You found all ${TOTAL} QR codes! Your prize is waiting in Codes.`
+              : `You found all ${TOTAL}! Amazing!`
             : found === 0
               ? `${TOTAL} QR codes are waiting for you. Tap Scan and look around!`
               : `You've found ${found} of ${TOTAL}. ${TOTAL - found} more to go: tap Scan and look around!`,
@@ -104,6 +108,14 @@ const TOUR_STOPS: TourStop[] = ["map", "dex", "quests", "me", "scan"];
 /** His tour of the menu: the map right after sign-up, then each menu button the first time it's tapped. */
 function tourTalk(stop: TourStop, p: Progress, then?: () => void): Talk {
   const name = p.name.trim();
+  const { hunt } = getHunt();
+  const TOTAL = hunt.stations.length;
+  // The prize line only when the organisers have set prizes (in their words if one needs every code)
+  const prizeLine: Line[] = !hunt.prizes.length
+    ? []
+    : hunt.prizes.some((pr) => pr.rule === "all")
+      ? [{ text: `Collect all ${TOTAL} to unlock your prize!` }]
+      : [{ text: "Collect them to win prizes!" }];
   const lines: Line[] = {
     map: [
       { text: `Welcome to the hunt, ${name}! Let me show you around.`, say: "Welcome to the hunt! Let me show you around." },
@@ -117,7 +129,7 @@ function tourTalk(stop: TourStop, p: Progress, then?: () => void): Talk {
     dex: [
       { text: `This is your QR Collection: all ${TOTAL} codes, with the ones you've found lit up.` },
       { text: "Tap a code to read its clue, then Find it to go look for it." },
-      { text: `Collect all ${TOTAL} to unlock your prize!` },
+      ...prizeLine,
     ],
     quests: [
       { text: "These are your Quests: goals like scanning your first code or finding the legendary gold one." },

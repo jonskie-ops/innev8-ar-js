@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { pad2 } from "@/lib/dom";
-import { STATIONS, TOTAL, type Station } from "@/lib/hunt";
-import { TEST_MODE } from "@/lib/site";
+import type { Station } from "@/lib/hunt";
+import { getHunt, useHunt } from "@/lib/huntStore";
 import { ScanQufoo, type Line } from "../Mascot";
 import type { ArPhase, ArStage, CamState, Guide } from "./ar/stage";
 import { ArrowRightIcon, CameraOffIcon, CloseIcon } from "./icons";
@@ -25,8 +25,8 @@ const CAM_MESSAGE: Partial<Record<CamState, string>> = {
 };
 
 /** A few of the codes still to find, always including the one the player chose (if any). */
-function pickHidden(found: Record<string, number>, target?: Station) {
-  const rest = STATIONS.filter((s) => !found[s.id] && s !== target).sort(() => Math.random() - 0.5);
+function pickHidden(stations: Station[], found: Record<string, number>, target?: Station) {
+  const rest = stations.filter((s) => !found[s.id] && s !== target).sort(() => Math.random() - 0.5);
   return (target && !found[target.id] ? [target, ...rest] : rest).slice(0, PER_SCAN);
 }
 
@@ -56,8 +56,11 @@ export function ScanView({
   const videoRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<ArStage | null>(null);
   // The code to look for first: the one they came for, else the first still to find
-  const [start] = useState(() => (target && !found[target.id] ? target : STATIONS.find((s) => !found[s.id])));
-  const [hidden] = useState(() => pickHidden(found, start));
+  // The codes as they are when the scanner opens (a change from the admin meanwhile waits until next time)
+  const [stations] = useState(() => getHunt().hunt.stations);
+  const testMode = useHunt().hunt.settings.testMode;
+  const [start] = useState(() => (target && !found[target.id] ? target : stations.find((s) => !found[s.id])));
+  const [hidden] = useState(() => pickHidden(stations, found, start));
   const [chosen, setChosen] = useState(start); // changed in the strip at the bottom
   const [phase, setPhase] = useState<ArPhase | "loading">("loading");
   const [station, setStation] = useState<Station | null>(null);
@@ -116,9 +119,9 @@ export function ScanView({
     return () => removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const count = STATIONS.filter((s) => found[s.id]).length;
+  const count = stations.filter((s) => found[s.id]).length;
   const num = station ? `#${pad2(station.num)}` : "";
-  const help = TEST_MODE && phase === "searching" ? guide : null; // radar and arrows are a test aid
+  const help = testMode && phase === "searching" ? guide : null; // radar and arrows are a test aid
 
   let hint: ReactNode = "Starting AR…";
   if (failed) hint = "AR isn't available in this browser.";
@@ -148,7 +151,7 @@ export function ScanView({
   } else if (phase === "found") hint = <>QR code {num} revealed!</>;
   else if (phase === "ready") hint = "Tap the QR code to collect it";
   else if (phase === "collecting") hint = <>Collecting QR code {num}…</>;
-  else if (phase === "done") hint = `You've found all ${TOTAL} QR codes!`;
+  else if (phase === "done") hint = `You've found all ${stations.length} QR codes!`;
 
   const camMessage = cam && xr !== "on" ? CAM_MESSAGE[cam] : undefined;
   // Qufoo sniffs while you search (you hear him sniff), and speaks up once a code is near
@@ -164,7 +167,7 @@ export function ScanView({
           : phase === "collecting"
             ? { text: "Got it! Good job!" }
             : phase === "done"
-              ? { text: `You found all ${TOTAL}! Amazing!` }
+              ? { text: `You found all ${stations.length}! Amazing!` }
               : null;
   // Test aid: how this phone follows the player's movement
   const tracking =
@@ -193,10 +196,10 @@ export function ScanView({
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Close scanner">
           <CloseIcon />
         </button>
-        {TEST_MODE && tracking && <span className="chip chip--mode">{tracking}</span>}
+        {testMode && tracking && <span className="chip chip--mode">{tracking}</span>}
         <span className="chip chip--count">
           <i className="chip__px" aria-hidden="true"></i>
-          {count}/{TOTAL}
+          {count}/{stations.length}
         </span>
       </div>
 
@@ -255,7 +258,7 @@ export function ScanView({
           {!failed && phase !== "loading" && <ScanQufoo say={qufooSays} />}
         </div>
         <div className="scan__codes" role="group" aria-label="Choose a QR code to look for">
-          {STATIONS.map((s, i) => {
+          {stations.map((s, i) => {
             const got = Boolean(found[s.id]);
             const on = chosen === s;
             return (

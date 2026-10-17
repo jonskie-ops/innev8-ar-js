@@ -1,16 +1,22 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- prize photos come from the organisers' storage */
 
 import { useState, type CSSProperties } from "react";
 import { pad2 } from "@/lib/dom";
-import { POINTS, RARITY_LABEL, STATIONS, TOTAL, zoneName, type Station } from "@/lib/hunt";
-import { CheckIcon, DexIcon, ListIcon, MapIcon, ScanIcon } from "./icons";
+import { prizeProgress, RARITY_LABEL, ruleText, standing, zoneName, type Prize, type Station } from "@/lib/hunt";
+import { useHunt } from "@/lib/huntStore";
+import { CheckIcon, DexIcon, GiftIcon, ListIcon, MapIcon, ScanIcon } from "./icons";
 import { QrTile } from "./QrTile";
 
 const timeFmt = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 type Layout = "list" | "grid";
 
-/** The collection: all QR codes as floating tiles, found ones lit up, the rest as ghosts with a clue. */
+/**
+ * The collection: all QR codes as floating tiles, found ones lit up, the rest as ghosts with a clue.
+ * Codes the organisers have since turned off stay at the end if the player found them. Then the
+ * prizes: what each takes, how close they are, and the ones they've won.
+ */
 export function DexView({
   found,
   onFind,
@@ -21,13 +27,16 @@ export function DexView({
   /** Open the scanner looking for this code. */
   onFind: (station: Station) => void;
   onShowOnMap: (id: string) => void;
-  onPrize: () => void;
+  onPrize: (prize: Prize) => void;
 }) {
+  const { hunt, known } = useHunt();
   const [layout, setLayout] = useState<Layout>("list"); // always opens as a list
   const [open, setOpen] = useState<string | null>(null);
-  const count = STATIONS.filter((s) => found[s.id]).length;
-  const complete = count === TOTAL;
-  const sel = STATIONS.find((s) => s.id === open);
+  const me = standing(hunt, known, found);
+  const { count, total, kept } = me;
+  const codes = [...hunt.stations, ...kept];
+  const off = new Set(kept.map((s) => s.id));
+  const sel = codes.find((s) => s.id === open);
   const toggle = (id: string) => setOpen(open === id ? null : id);
 
   return (
@@ -55,15 +64,15 @@ export function DexView({
         </div>
       </div>
       <p className="dex__count">
-        {count}/{TOTAL} found
+        {count}/{total} found
       </p>
-      <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={TOTAL} aria-valuenow={count}>
-        <span style={{ width: `${(count / TOTAL) * 100}%` }}></span>
+      <div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={count}>
+        <span style={{ width: `${total ? (count / total) * 100 : 0}%` }}></span>
       </div>
 
       {layout === "list" ? (
         <ul className="qlist">
-          {STATIONS.map((s, i) => {
+          {codes.map((s, i) => {
             const got = Boolean(found[s.id]);
             const isOpen = open === s.id;
             return (
@@ -76,7 +85,11 @@ export function DexView({
                     </span>
                     <span className="qlist__title">{got ? s.name : "Not found yet"}</span>
                     <span className="qlist__sub">
-                      {got ? `${zoneName(s.zone)} · ${s.spot}` : `Somewhere in the ${zoneName(s.zone)}`}
+                      {off.has(s.id)
+                        ? "No longer in the hunt: still yours"
+                        : got
+                          ? `${zoneName(hunt, s.zone)} · ${s.spot}`
+                          : `Somewhere in the ${zoneName(hunt, s.zone)}`}
                     </span>
                   </span>
                   <span className="qlist__end">
@@ -85,7 +98,7 @@ export function DexView({
                         <CheckIcon />
                       </span>
                     ) : (
-                      <span className="qlist__pts">+{POINTS[s.rarity]}</span>
+                      <span className="qlist__pts">+{s.points}</span>
                     )}
                   </span>
                 </button>
@@ -101,7 +114,7 @@ export function DexView({
       ) : (
         <>
           <div className="dex__grid">
-            {STATIONS.map((s, i) => {
+            {codes.map((s, i) => {
               const got = Boolean(found[s.id]);
               return (
                 <button
@@ -126,11 +139,15 @@ export function DexView({
               <div className="dex__info">
                 <p className="label">
                   #{pad2(sel.num)} · <span className={`rarity rarity--${sel.rarity}`}>{RARITY_LABEL[sel.rarity]}</span>{" "}
-                  · {POINTS[sel.rarity]} pts
+                  · {sel.points} pts
                 </p>
                 <h2>{found[sel.id] ? sel.name : "Not found yet"}</h2>
                 <p className="dex__where">
-                  {found[sel.id] ? `${zoneName(sel.zone)} · ${sel.spot}` : `Somewhere in the ${zoneName(sel.zone)}`}
+                  {off.has(sel.id)
+                    ? "No longer in the hunt: still yours"
+                    : found[sel.id]
+                      ? `${zoneName(hunt, sel.zone)} · ${sel.spot}`
+                      : `Somewhere in the ${zoneName(hunt, sel.zone)}`}
                 </p>
                 <Details station={sel} foundAt={found[sel.id]} onFind={onFind} onShowOnMap={onShowOnMap} />
               </div>
@@ -139,11 +156,41 @@ export function DexView({
         </>
       )}
 
-      <div className="dex__prize">
-        <button type="button" className="btn btn--primary" disabled={!complete} onClick={onPrize}>
-          {complete ? "Claim your prize" : `Prize unlocks at ${TOTAL}/${TOTAL}`}
-        </button>
-      </div>
+      {hunt.prizes.length > 0 && (
+        <section className="dex__prizes" aria-labelledby="dex-prizes">
+          <h2 id="dex-prizes" className="dex__prizes-title">
+            Prizes
+          </h2>
+          <ul className="quest-list">
+            {hunt.prizes.map((pr) => {
+              const { part, won } = prizeProgress(pr, me);
+              return (
+                <li key={pr.id} className={won ? "card quest prizeq is-done" : "card quest prizeq"}>
+                  <span className="prizeq__photo" aria-hidden="true">
+                    {pr.photo ? <img src={pr.photo} alt="" loading="lazy" decoding="async" /> : <GiftIcon />}
+                  </span>
+                  <div className="quest__body">
+                    <h2>{pr.name}</h2>
+                    <p>{won ? "You won it!" : ruleText(pr, total)}</p>
+                    {!won && (
+                      <div className="bar bar--thin">
+                        <span style={{ width: `${part * 100}%` }}></span>
+                      </div>
+                    )}
+                  </div>
+                  {won ? (
+                    <button type="button" className="btn btn--primary btn--sm" onClick={() => onPrize(pr)}>
+                      Claim
+                    </button>
+                  ) : (
+                    <span className="quest__count">{Math.round(part * 100)}%</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

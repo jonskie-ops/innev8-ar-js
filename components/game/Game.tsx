@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { scoreOf, STATIONS, stationFromPayload, TOTAL, type Station } from "@/lib/hunt";
+import { prizeProgress, standing, stationFromPayload, type Prize, type Station } from "@/lib/hunt";
+import { getHunt, useHunt } from "@/lib/huntStore";
 import { askMotion } from "@/lib/motion";
-import { TEST_MODE } from "@/lib/site";
 import { progress, useProgress } from "@/lib/store";
 import { CountdownSection } from "../CountdownSection";
 import { explainMenu, QufooDock, type TourStop } from "../Mascot";
@@ -47,22 +47,25 @@ export function Game({ phase }: { phase: Phase }) {
   const [focus, setFocus] = useState<string | null>(null);
   // The scanner, optionally looking for one chosen code
   const [scan, setScan] = useState<{ target?: Station } | null>(null);
-  const [caught, setCaught] = useState<Station | null>(null);
-  const [overlay, setOverlay] = useState<"countdown" | "prize" | null>(null);
+  // Just collected: the code, and a prize that catch won (if it did)
+  const [caught, setCaught] = useState<{ station: Station; won: Prize | null } | null>(null);
+  const [overlay, setOverlay] = useState<"countdown" | { prize: Prize } | null>(null);
   const [toast, showToast] = useToast();
   // A code opened from a link (/?s=<code>), waiting for onboarding.
   const [pending, setPending] = useState<Station | null>(null);
 
   // Sign-up needs both steps; older saves have a name but no province yet.
   const signedUp = p.onboarded && p.province !== "";
-  const count = STATIONS.filter((s) => p.found[s.id]).length;
-  const points = scoreOf(p.found);
+  const { hunt, known } = useHunt();
+  const me = standing(hunt, known, p.found);
+  const { count, total } = me;
+  const points = me.score;
 
   useEffect(() => {
     const code = new URLSearchParams(location.search).get("s");
     if (!code) return;
     history.replaceState(null, "", location.pathname);
-    const station = stationFromPayload(code);
+    const station = stationFromPayload(getHunt().hunt, code);
     if (station) setPending(station); // eslint-disable-line react-hooks/set-state-in-effect -- reads the URL once on mount
     else showToast("That link isn't an INNEV8 QR code.");
   }, [showToast]);
@@ -97,11 +100,18 @@ export function Game({ phase }: { phase: Phase }) {
     if (onTour("scan")) explainMenu("scan", open);
     else open();
   };
-  const onCatch = useCallback((station: Station) => {
-    progress.collect(station.id);
-    setScan(null);
-    setCaught(station);
-  }, []);
+  const onCatch = useCallback(
+    (station: Station) => {
+      // Did this catch win a prize? (Won now, and not before it)
+      const before = standing(hunt, known, p.found);
+      const after = standing(hunt, known, { ...p.found, [station.id]: Date.now() });
+      const won = hunt.prizes.find((pr) => !prizeProgress(pr, before).won && prizeProgress(pr, after).won) ?? null;
+      progress.collect(station.id);
+      setScan(null);
+      setCaught({ station, won });
+    },
+    [hunt, known, p.found],
+  );
 
   if (!signedUp) return <Onboarding />;
 
@@ -129,12 +139,12 @@ export function Game({ phase }: { phase: Phase }) {
               <MiniClock />
             </button>
           )}
-          <span className="chip chip--count" aria-label={`${count} of ${TOTAL} QR codes found`}>
+          <span className="chip chip--count" aria-label={`${count} of ${total} QR codes found`}>
             <i className="chip__px" aria-hidden="true"></i>
-            {count}/{TOTAL}
+            {count}/{total}
           </span>
         </div>
-        {TEST_MODE && <span className="hud__test">Test mode</span>}
+        {hunt.settings.testMode && <span className="hud__test">Test mode</span>}
       </header>
 
       <div className={tab === "map" ? "game__body game__body--map" : "game__body"}>
@@ -149,7 +159,7 @@ export function Game({ phase }: { phase: Phase }) {
               setFocus(id);
               setTab("map");
             }}
-            onPrize={() => setOverlay("prize")}
+            onPrize={(prize) => setOverlay({ prize })}
           />
         )}
         {tab === "quests" && <QuestsView found={p.found} />}
@@ -197,8 +207,10 @@ export function Game({ phase }: { phase: Phase }) {
 
       {caught && (
         <CatchCard
-          station={caught}
+          station={caught.station}
           count={count}
+          total={total}
+          won={caught.won}
           onHunt={() => {
             setCaught(null);
             openScan();
@@ -207,15 +219,15 @@ export function Game({ phase }: { phase: Phase }) {
             setCaught(null);
             setTab("dex");
           }}
-          onPrize={() => {
+          onPrize={(prize) => {
             setCaught(null);
-            setOverlay("prize");
+            setOverlay({ prize });
           }}
         />
       )}
 
-      {overlay === "prize" && count === TOTAL && (
-        <PrizeCard progress={p} points={points} onClose={() => setOverlay(null)} />
+      {overlay && overlay !== "countdown" && (
+        <PrizeCard prize={overlay.prize} progress={p} claimPlace={hunt.settings.claimPlace} onClose={() => setOverlay(null)} />
       )}
 
       {overlay === "countdown" && (

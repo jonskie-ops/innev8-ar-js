@@ -2,20 +2,21 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { pad2, prefersReducedMotion } from "@/lib/dom";
-import { EVENT_END, EVENT_START } from "@/lib/site";
+import type { Settings } from "@/lib/hunt";
+import { useHunt } from "@/lib/huntStore";
 
 const DAY = 86_400_000;
 
 export type Phase = "before" | "live" | "after";
 type Clock = { d: string; h: string; m: string; s: string; phase: Phase };
 
-const phaseAt = (now: number): Phase =>
-  now < EVENT_START.getTime() ? "before" : now > EVENT_END.getTime() ? "after" : "live";
+/** Before, during or after the hunt (its dates are set in the admin's Event page). */
+const phaseAt = (now: number, { start, end }: Settings): Phase => (now < start ? "before" : now > end ? "after" : "live");
 
-function readClock(now: number): Clock {
-  const left = EVENT_START.getTime() - now;
+function readClock(now: number, settings: Settings): Clock {
+  const left = settings.start - now;
   if (left <= 0) {
-    return { d: "00", h: "00", m: "00", s: "00", phase: phaseAt(now) };
+    return { d: "00", h: "00", m: "00", s: "00", phase: phaseAt(now, settings) };
   }
   return {
     d: pad2(Math.floor(left / DAY)),
@@ -28,30 +29,32 @@ function readClock(now: number): Clock {
 
 /** Ticks once per second, aligned to the wall-clock second. Null until mounted (avoids hydration mismatch). */
 export function useClock() {
+  const { settings } = useHunt().hunt;
   const [clock, setClock] = useState<Clock | null>(null);
   useEffect(() => {
     let timer = 0;
     const tick = () => {
       const now = Date.now();
-      const c = readClock(now);
+      const c = readClock(now, settings);
       setClock(c);
       if (c.phase === "before") timer = window.setTimeout(tick, 1000 - (now % 1000) + 5);
     };
     tick();
     return () => clearTimeout(timer);
-  }, []);
+  }, [settings]);
   return clock;
 }
 
 /** The event phase, re-checked every 30 s (cheaper than useClock for components that only need the phase). */
 export function useEventPhase() {
+  const { settings } = useHunt().hunt;
   const [phase, setPhase] = useState<Phase | null>(null);
   useEffect(() => {
-    const check = () => setPhase(phaseAt(Date.now()));
+    const check = () => setPhase(phaseAt(Date.now(), settings));
     check();
     const id = window.setInterval(check, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [settings]);
   return phase;
 }
 

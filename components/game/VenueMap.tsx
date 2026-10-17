@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { STATIONS, ZONES } from "@/lib/hunt";
+import { useHunt } from "@/lib/huntStore";
 import { VENUE } from "@/lib/venue";
 import { CheckIcon, FitIcon, MinusIcon, PlusIcon } from "./icons";
 import { cameraTransform, MAX_ZOOM, useMapCamera, type Home } from "./useMapCamera";
@@ -40,8 +40,6 @@ const HOME: Home = {
   y: (137 - (VIEW.y + VIEW.h / 2)) / VIEW.h, // the building with its pins, balanced top and bottom
 };
 
-/** Zones labelled on the map (the Courtyard keeps its codes, just not a label). */
-const MAP_ZONES = ZONES.filter((z) => z.id !== "court");
 
 const WALLS = VENUE.annex;
 
@@ -77,6 +75,9 @@ export function VenueMap({
 }) {
   const { boxRef, layerRef, mapRef, cam, atHome, gesturing, zoomIn, zoomOut, reset } = useMapCamera(HOME);
   const zoomed = cam.z > 1.001;
+  // The codes that are on, and the zones with a name tag (the Courtyard keeps its codes, not a tag)
+  const { stations, zones } = useHunt().hunt;
+  const tags = zones.filter((z) => z.label);
 
   return (
     <div
@@ -116,7 +117,7 @@ export function VenueMap({
               <path className="v3d__wall-glow" d={WALLS} pathLength="1" />
               <path className="v3d__wall" d={WALLS} pathLength="1" />
               <path className="v3d__room" d={PARTITIONS} pathLength="1" />
-              {STATIONS.map((s) => (
+              {stations.map((s) => (
                 <g
                   key={s.id}
                   className={`v3d__spot v3d__spot--${s.rarity}${found[s.id] ? " is-found" : ""}${
@@ -129,8 +130,8 @@ export function VenueMap({
               ))}
             </svg>
 
-            {MAP_ZONES.map((z, i) => (
-              <span key={z.id} className="v3d__up v3d__tag" style={at(z.label.x, z.label.y, i)} aria-hidden="true">
+            {tags.map((z, i) => (
+              <span key={z.id} className="v3d__up v3d__tag" style={at(z.label!.x, z.label!.y, i)} aria-hidden="true">
                 <i>{z.name}</i>
               </span>
             ))}
@@ -138,14 +139,14 @@ export function VenueMap({
               <span
                 key={l.name}
                 className={`v3d__up v3d__tag v3d__tag--${l.tone}`}
-                style={at(l.x, l.y, MAP_ZONES.length + i)}
+                style={at(l.x, l.y, tags.length + i)}
                 aria-hidden="true"
               >
                 <i>{l.name}</i>
               </span>
             ))}
 
-            {STATIONS.map((s, i) => {
+            {stations.map((s, i) => {
               const got = Boolean(found[s.id]);
               return (
                 <button

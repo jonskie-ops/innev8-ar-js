@@ -954,9 +954,52 @@ code {
 .dex__info .btn {
   margin-top: 6px;
 }
-.dex__prize {
+/* The prizes, under the collection: like quests, with the prize's photo */
+.dex__prizes {
+  margin-top: 22px;
+}
+.dex__prizes-title {
+  margin: 0 0 10px;
+  font: 800 18px/1.2 var(--font-h);
+}
+.quest.prizeq {
+  grid-template-columns: 52px 1fr auto;
+}
+.prizeq__photo {
+  position: relative;
   display: grid;
-  margin-top: 16px;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 13px;
+  background: rgba(var(--deep-rgb), 0.7);
+  box-shadow: inset 0 0 0 1px rgba(214, 181, 109, 0.35);
+  color: #d6b56d;
+}
+.prizeq__photo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.prizeq__photo svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.prizeq.is-done .prizeq__photo {
+  box-shadow:
+    inset 0 0 0 1px #d6b56d,
+    0 0 14px rgba(214, 181, 109, 0.45);
+}
+.prizeq.is-done p {
+  color: #d6b56d;
 }
 .view-head--center {
   align-items: center;
@@ -2379,14 +2422,42 @@ button.psec__head {
 .prize h2 {
   font-size: 24px;
 }
-.prize__codes {
-  display: grid;
-  grid-template-columns: repeat(4, 40px);
-  gap: 12px 10px;
-  margin: 10px 0;
+/* The prize's photo on its card (a gift where there's none) */
+.prize__photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  margin: 8px 0 10px;
+  overflow: hidden;
+  border-radius: 16px;
+  background:
+    radial-gradient(60% 75% at 50% 42%, rgba(var(--rc), 0.3), transparent 72%),
+    rgba(var(--deep-rgb), 0.7);
+  box-shadow: inset 0 0 0 1px rgba(var(--rc), 0.4);
 }
-.prize__codes .qrt {
-  --qs: 40px;
+.prize__photo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.prize__photo-ph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgb(var(--rc));
+}
+.prize__photo-ph svg {
+  width: 30%;
+  height: 30%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 12px rgba(var(--rc), 0.6));
 }
 .prize__code {
   margin: 6px 0 10px;
