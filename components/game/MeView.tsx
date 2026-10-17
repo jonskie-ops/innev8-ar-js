@@ -6,6 +6,7 @@ import { levelOf, STATIONS, TOTAL } from "@/lib/hunt";
 import { PROVINCES, TEST_MODE } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
+import { GetApp } from "../GetApp";
 import { I8Mark } from "./I8Mark";
 import {
   ArrowRightIcon,
@@ -26,7 +27,7 @@ const timeFmt = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric
 /**
  * My Profile: a summit cover (bridge photo, event title, INNEV8 mark), then a sheet with the player's
  * avatar, name, province and stats, an About section that turns into the edit form, a strip of their
- * QR codes and the side countdown before the event. Beside the avatar: edit (opens the form) and
+ * QR codes, how to get the app (until it's installed) and the side countdown before the event. Beside the avatar: edit (opens the form) and
  * delete, which wipes the player from this device and starts the app over from the splash (asks first).
  */
 export function MeView({
@@ -279,6 +280,8 @@ export function MeView({
             </button>
           </div>
         </section>
+
+        <GetApp variant="section" />
 
         {phase === "before" && (
           <section className="psec">

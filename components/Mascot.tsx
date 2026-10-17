@@ -660,51 +660,15 @@ const DOCK_H = 255;
 
 /**
  * Small Qufoo waiting just above the menu, moving gently. Tap him and he comes up to explain the
- * page you're on. He steps away while the big Qufoo talks, when `hidden` (e.g. a QR code's card is
- * open on the map), and while the end of a scrolling page (`scroller`) is under him, so the last
- * thing on it (like the prize button) is never covered.
+ * page you're on. He steps away while the big Qufoo talks and when `hidden` (e.g. a QR code's card
+ * is open on the map); otherwise he stays, down to the very end of a page.
  */
-export function QufooDock({
-  page,
-  hidden = false,
-  scroller,
-}: {
-  page: TourStop;
-  hidden?: boolean;
-  scroller?: React.RefObject<HTMLElement | null>;
-}) {
+export function QufooDock({ page, hidden = false }: { page: TourStop; hidden?: boolean }) {
   const talking = useBusy();
   const reduced = useReducedMotion();
   const sprite = useSprite(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const dockRef = useRef<HTMLButtonElement>(null);
-  const [atEnd, setAtEnd] = useState(false);
-  const away = talking || hidden || atEnd;
-
-  // The end of the page's content is in his spot: step aside (he's back once you scroll up)
-  useEffect(() => {
-    const el = scroller?.current;
-    const content = el?.lastElementChild;
-    const dock = dockRef.current;
-    if (!el || !content || !dock || page === "map") {
-      setAtEnd(false); // the map has no page end
-      return;
-    }
-    // Only a page that scrolls: there, scrolling back up brings him back
-    const check = () => {
-      const end = content.getBoundingClientRect().bottom;
-      const spot = dock.getBoundingClientRect();
-      setAtEnd(el.scrollHeight > el.clientHeight && end > spot.top + 4 && end < spot.bottom + 40);
-    };
-    const watch = new ResizeObserver(check);
-    watch.observe(el);
-    watch.observe(content);
-    el.addEventListener("scroll", check, { passive: true });
-    return () => {
-      watch.disconnect();
-      el.removeEventListener("scroll", check);
-    };
-  }, [scroller, page]);
+  const away = talking || hidden;
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext("2d");
@@ -726,7 +690,6 @@ export function QufooDock({
 
   return (
     <button
-      ref={dockRef}
       type="button"
       className={away ? "qdock is-away" : "qdock"}
       aria-label={`Ask ${MASCOT} about this page`}

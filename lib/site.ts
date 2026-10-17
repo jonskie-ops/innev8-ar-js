@@ -25,6 +25,9 @@ export const PROVINCES = [
 ] as const;
 
 export const TITLE = "INNEV8 QR Code Hunt · Regional ICT Summit 2026";
+/** The installed app's name, and the short one under its home-screen icon. */
+export const APP_NAME = "INNEV8 QR Code Hunt";
+export const APP_SHORT_NAME = "QR Hunt";
 export const DESCRIPTION =
   "Hunt the 8 INNEV8 QR codes hidden around the Regional ICT Summit 2026 and collect them all. Nov 20–21, Leyte Academic Center, Palo, Leyte.";
 

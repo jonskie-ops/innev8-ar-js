@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- decorative full-bleed background, sized by CSS */
 import { GOOGLE_CALENDAR_URL, ICS_URL } from "@/lib/site";
 import { CountdownClock } from "./Countdown";
+import { GetApp } from "./GetApp";
 import { CalendarAddIcon, DownloadIcon } from "./icons";
 
 export function CountdownSection() {
@@ -35,6 +36,7 @@ export function CountdownSection() {
           </div>
           <p className="save__note">Registration opens soon.</p>
         </div>
+        <GetApp variant="card" />
       </div>
     </section>
   );

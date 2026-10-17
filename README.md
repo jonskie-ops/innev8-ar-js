@@ -108,6 +108,27 @@ opens the scanner.
   hear Qufoo" and that tap starts it. The first tap also readies the one audio element he speaks
   through, so the scanner's lines (which come on their own) can play later.
 
+## The app (PWA)
+
+The game installs to the home screen and opens like an app ("QR Hunt"), full screen.
+
+- **Installing:** `app/manifest.ts` (name, colours, icons) and, for iPhone, `appleWebApp` in
+  `app/layout.tsx`. The icons in `public/assets/img/app/` come from the INNEV8 icon:
+  `node scripts/app-icons.mjs` (the maskable ones fill the square for Android's icon shapes).
+  "Get the app" on the Me page and the countdown screen (`components/GetApp.tsx`) shows how, for
+  this phone: an Install button (Android, desktop Chrome), Share then Add to Home Screen (iPhone),
+  or "open it in your browser first" (Messenger and other in-app browsers). Gone once installed.
+  On iPhone the installed app keeps its own data, apart from Safari's, so the guide says to add
+  it before collecting codes.
+- **Weak or no signal:** `public/sw.js`, a service worker started by `lib/pwa.ts` (production
+  builds on a secure page only: not in `next dev`, not over `http://192.168.x.x`). It keeps the
+  page, the app's code, pictures, fonts, sprites and all of Qufoo's clips on the phone (~5 MB),
+  so the game opens and plays offline, scanner and voice included. The page comes from the
+  network when it answers within 3.5 s, else from the phone.
+- **Updates:** a push reaches an installed app the next time it's opened online. If the phone
+  had to open its kept copy (slow signal) and a newer one then comes in, "A new version is ready"
+  offers to reload (`components/AppUpdate.tsx`). Re-recorded clips come through on their own.
+
 ## Before the event
 
 - **Venue map:** the building outlines are real (Leyte Convention Complex, Annex A, the east
@@ -126,6 +147,7 @@ opens the scanner.
 | `components/Splash.tsx`, `Emblem.tsx` | INNEV8 splash screen |
 | `components/Mascot.tsx`, `scripts/mascot.mjs` | The talking mascot after the splash; the script that builds its sprite |
 | `lib/voice.ts`, `lib/voice-clips.json`, `scripts/voice.mjs` | Qufoo's voice clips and the script that adds them |
+| `app/manifest.ts`, `public/sw.js`, `lib/pwa.ts`, `components/GetApp.tsx`, `components/AppUpdate.tsx`, `scripts/app-icons.mjs` | The installable app: manifest, offline service worker, install guide, update banner, icons |
 | `components/CountdownSection.tsx`, `Countdown.tsx` | "The countdown is on." section and clock |
 | `components/game/Game.tsx` | Game shell: HUD, tabs, overlays |
 | `components/game/MapView.tsx` | Venue map (home) |

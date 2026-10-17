@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { preload } from "react-dom";
-import { DESCRIPTION, THEME_COLOR, TITLE } from "@/lib/site";
+import { APP_SHORT_NAME, DESCRIPTION, THEME_COLOR, TITLE } from "@/lib/site";
 import "./globals.css";
 import "./game.css";
 
@@ -15,6 +15,8 @@ export const metadata: Metadata = {
     ],
     apple: "/assets/img/apple-touch-icon.png",
   },
+  // Added to an iPhone's home screen: opens full screen (the layout keeps clear of the status bar)
+  appleWebApp: { capable: true, title: APP_SHORT_NAME, statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
