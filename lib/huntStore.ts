@@ -45,14 +45,31 @@ function set(next: HuntState) {
 
 let lastAsked = 0;
 let asking: Promise<void> | null = null;
-/** Asks for the organisers' latest; keeps what it has if there's no answer. */
-function refresh() {
+const AGAIN_STALE_MS = 4000;
+/**
+ * The server's copy is past its 30 seconds: it was handed out while a fresh one is fetched in the
+ * background (Vercel says "STALE", or its age shows it), so the latest is a few seconds away.
+ */
+function wasStale(res: Response, at: unknown) {
+  const cache = `${res.headers.get("x-vercel-cache") ?? ""} ${res.headers.get("x-nextjs-cache") ?? ""}`;
+  const age = Number(res.headers.get("age"));
+  const made = typeof at === "string" ? Date.parse(at) : NaN;
+  return /STALE/i.test(cache) || age >= 30 || Date.now() - made > 45_000;
+}
+
+/**
+ * Asks for the organisers' latest; keeps what it has if there's no answer. Handed an old copy, it
+ * asks once more a few seconds later, so a change shows up right away instead of a check later.
+ */
+function refresh(again = false) {
   if (asking) return asking;
   lastAsked = Date.now();
   asking = (async () => {
     try {
       const res = await fetch("/api/hunt", { cache: "no-store" });
-      const hunt = res.ok ? parseHunt(((await res.json()) as { hunt?: unknown }).hunt) : null;
+      const body = res.ok ? ((await res.json()) as { hunt?: unknown; at?: unknown }) : null;
+      if (body && !again && wasStale(res, body.at)) setTimeout(() => void refresh(true), AGAIN_STALE_MS);
+      const hunt = body ? parseHunt(body.hunt) : null;
       if (!hunt) return;
       const now = read();
       const known = { ...now.known, ...byId(hunt.stations) };
