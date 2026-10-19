@@ -1259,6 +1259,24 @@ code {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* The sponsor's logo in a circle on the top-right corner (the found check moves to the bottom) */
+.qrt__sponsor {
+  position: absolute;
+  right: -14%;
+  top: -14%;
+  width: 44%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 1.5px rgb(var(--rc)),
+    0 0 0 3px var(--bg),
+    0 0 12px rgba(var(--rc), 0.7);
+}
+.qrt.has-sponsor .qrt__badge {
+  top: auto;
+  bottom: -10%;
+}
 
 /* Quests */
 .quest-list {

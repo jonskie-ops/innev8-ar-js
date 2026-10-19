@@ -43,3 +43,5 @@ next-env.d.ts
 
 # Qufoo voice clips as recorded (scripts/voice.mjs copies them into public/)
 /Qufoo voice lines/
+# Sponsor logos as given (scripts/sponsors.mjs makes their badges in public/)
+/QR Sponsor/

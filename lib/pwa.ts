@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import sponsors from "./sponsors.json";
 import clips from "./voice-clips.json";
 
 /**
@@ -24,6 +25,7 @@ const ASSETS = [
   "/assets/img/mascot/sniff.webp",
   "/assets/regional-ict-summit-2026.ics",
   ...Object.values(clips as Record<string, string>),
+  ...Object.values(sponsors as Record<string, string>),
 ];
 // After the game has loaded what it uses (the scanner's 3D comes a few seconds in), and again later
 const WARM_MS = [8000, 30000];

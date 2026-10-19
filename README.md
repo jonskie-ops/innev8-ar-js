@@ -132,6 +132,13 @@ opens the scanner.
   Phones block sound until the page is tapped, so his hello after the splash waits with "Tap to
   hear Qufoo" and that tap starts it. The first tap also readies the one audio element he speaks
   through, so the scanner's lines (which come on their own) can play later.
+- **Sponsors:** every QR code carries a sponsor's logo in a circle on its top-right corner (the
+  tiles everywhere, and the 3D code in the camera). The logos go in `QR Sponsor/` (not
+  committed); `node scripts/sponsors.mjs` takes out their plain backgrounds, sets each on a white
+  circle as round badges in `public/assets/sponsors/`, and writes `lib/sponsors.json`. Copy the
+  badges to the admin's `public/sponsors/` (and add new sponsors to its `SPONSORS`), where the
+  organisers choose each code's sponsor; until they have (an admin without the sponsors update),
+  code #n gets the nth sponsor.
 
 ## The app (PWA)
 
@@ -172,6 +179,7 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
 | `components/Splash.tsx`, `Emblem.tsx` | INNEV8 splash screen |
 | `components/Mascot.tsx`, `scripts/mascot.mjs` | The talking mascot after the splash; the script that builds its sprite |
 | `lib/voice.ts`, `lib/voice-clips.json`, `scripts/voice.mjs` | Qufoo's voice clips and the script that adds them |
+| `lib/sponsors.ts`, `lib/sponsors.json`, `scripts/sponsors.mjs` | The QR codes' sponsors and the script that makes their badges |
 | `app/manifest.ts`, `public/sw.js`, `lib/pwa.ts`, `components/GetApp.tsx`, `components/AppUpdate.tsx`, `scripts/app-icons.mjs` | The installable app: manifest, offline service worker, install guide, update banner, icons |
 | `components/CountdownSection.tsx`, `Countdown.tsx` | "The countdown is on." section and clock |
 | `components/game/Game.tsx` | Game shell: HUD, tabs, overlays |

@@ -1,6 +1,7 @@
 import QRCode from "qrcode";
 import * as THREE from "three";
 import type { Rarity, Station } from "@/lib/hunt";
+import { sponsorOf } from "@/lib/sponsors";
 
 export const RARITY_HEX: Record<Rarity, number> = { common: 0x12bfea, rare: 0x20c9bc, legendary: 0xd6b56d };
 
@@ -59,7 +60,8 @@ function ring(outer: number, inner: number, r = 0) {
 /**
  * A QR code built in 3D: each dark module is a glowing block standing on a glass plate, the three
  * corner "eyes" are solid rings in the code's rarity colour, and a bright frame runs round the edge.
- * The pattern is generated from the code's value, so every one of the 10 looks different.
+ * The pattern is generated from the code's value, so every one of the 10 looks different. Its
+ * sponsor's logo sits in a circle on the top-right corner.
  */
 export function buildQr3d(station: Station): Qr3d {
   const tint = new THREE.Color(RARITY_HEX[station.rarity]);
@@ -117,6 +119,37 @@ export function buildQr3d(station: Station): Qr3d {
     eyes.add(eye);
   }
   root.add(eyes);
+
+  // The sponsor's logo in a circle on the top-right corner, like a sticker, ringed in the rarity
+  // colour. A plain white disc until the logo has loaded.
+  const sponsor = sponsorOf(station.sponsor);
+  let badge: THREE.Group | null = null;
+  if (sponsor) {
+    const R = 0.17;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 256;
+    const g = canvas.getContext("2d")!;
+    g.fillStyle = "#fff";
+    g.beginPath();
+    g.arc(128, 128, 128, 0, Math.PI * 2);
+    g.fill();
+    const tex = own(new THREE.CanvasTexture(canvas));
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    const logo = new Image();
+    logo.onload = () => {
+      g.drawImage(logo, 0, 0, 256, 256);
+      tex.needsUpdate = true;
+    };
+    logo.src = sponsor.badge;
+    badge = new THREE.Group();
+    const face = new THREE.Mesh(own(new THREE.CircleGeometry(R, 48)), own(new THREE.MeshBasicMaterial({ map: tex, toneMapped: false })));
+    const rim = new THREE.Mesh(own(new THREE.RingGeometry(R * 0.98, R * 1.14, 48)), own(new THREE.MeshBasicMaterial({ color: tint, toneMapped: false })));
+    rim.position.z = -0.002;
+    badge.add(rim, face);
+    badge.position.set(0.58, 0.58, 0.13);
+    root.add(badge);
+  }
 
   // Modules: one instanced mesh, each block with its own spot, scatter point and timing
   const cells: [number, number][] = [];
@@ -178,6 +211,7 @@ export function buildQr3d(station: Station): Qr3d {
     plate.scale.setScalar(Math.max(0.001, p));
     frame.scale.setScalar(Math.max(0.001, p));
     frameMat.emissiveIntensity = 1.4 + 0.6 * Math.sin(t * 3);
+    badge?.scale.setScalar(Math.max(0.001, e)); // on with the eyes, once the code has built
   };
 
   const hit = new THREE.Mesh(

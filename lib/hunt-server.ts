@@ -1,5 +1,6 @@
 import { cacheLife } from "next/cache";
 import { TASKS, type Hunt, type Prize, type PrizeRule, type Rarity, type Station, type Task, type Zone } from "./hunt";
+import { firstSponsor } from "./sponsors";
 
 /**
  * The hunt as the organisers set it in the admin, read from its Supabase database with the public
@@ -27,7 +28,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
       return res.json();
     };
     const [codes, zones, prizes, settings] = await Promise.all([
-      // Every column: a database without the networking update yet simply has no task
+      // Every column: a database without the networking or sponsors update yet simply has no task or sponsor
       get<CodeRow>("codes?select=*&live=eq.true&order=num"),
       get<ZoneRow>("zones?select=id,name,label_x,label_y&order=sort,name"),
       get<PrizeRow>("prizes?select=id,name,description,photo_path,rule,rule_value&live=eq.true&order=sort,created_at"),
@@ -49,6 +50,8 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             rarity: c.rarity,
             points: c.points,
             task: TASKS.includes(c.task as Task) ? (c.task as Task) : "none",
+            // A database without sponsors yet: each code's first sponsor, as the update would start it
+            sponsor: c.sponsor ?? firstSponsor(c.num),
             clue: c.clue,
             blurb: c.blurb,
             x: Number(c.x),
@@ -100,6 +103,7 @@ type CodeRow = {
   x: number | string;
   y: number | string;
   task?: string;
+  sponsor?: string;
 };
 type ZoneRow = { id: string; name: string; label_x: number | string | null; label_y: number | string | null };
 type PrizeRow = {

@@ -10,6 +10,7 @@
  */
 
 import { EVENT_END, EVENT_START, TEST_MODE } from "./site";
+import { firstSponsor } from "./sponsors";
 
 export type Rarity = "common" | "rare" | "legendary";
 
@@ -39,6 +40,8 @@ export type Station = {
   points: number;
   /** An extra task to do before it can be found (networking), or none. */
   task: Task;
+  /** Its sponsor's id (lib/sponsors.ts), or "none". */
+  sponsor: string;
   clue: string;
   blurb: string;
   /** Position on the venue map. */
@@ -46,7 +49,7 @@ export type Station = {
   y: number;
 };
 
-const BUILT_IN_STATIONS: Omit<Station, "points" | "task">[] = [
+const BUILT_IN_STATIONS: Omit<Station, "points" | "task" | "sponsor">[] = [
   {
     id: "px01",
     code: "I8AR-01-M2VD",
@@ -198,7 +201,7 @@ export type Settings = {
 export type Hunt = { stations: Station[]; zones: Zone[]; prizes: Prize[]; settings: Settings };
 
 export const BUILT_IN: Hunt = {
-  stations: BUILT_IN_STATIONS.map((s) => ({ ...s, points: POINTS[s.rarity], task: "none" as const })),
+  stations: BUILT_IN_STATIONS.map((s) => ({ ...s, points: POINTS[s.rarity], task: "none" as const, sponsor: firstSponsor(s.num) })),
   zones: BUILT_IN_ZONES,
   prizes: [],
   settings: { start: EVENT_START.getTime(), end: EVENT_END.getTime(), testMode: TEST_MODE, claimPlace: "INNEV8 help desk" },

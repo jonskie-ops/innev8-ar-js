@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { BUILT_IN, RARITIES, TASKS, type Hunt, type Prize, type PrizeRule, type Station, type Task, type Zone } from "./hunt";
+import { firstSponsor } from "./sponsors";
 
 /**
  * The hunt on this phone: the latest copy of what the organisers set (from /api/hunt), saved so the
@@ -138,7 +139,8 @@ function parseStation(v: unknown): Station | null {
   if (!RARITIES.includes(s.rarity as Station["rarity"]) || !num(s.points) || !str(s.clue) || !str(s.blurb)) return null;
   if (!num(s.x) || !num(s.y)) return null;
   const task: Task = TASKS.includes(s.task as Task) ? (s.task as Task) : "none"; // copies saved before tasks: none
-  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, task, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y };
+  const sponsor = str(s.sponsor) ? s.sponsor : firstSponsor(s.num); // and before sponsors: each code's first
+  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, task, sponsor, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y };
 }
 function parseZone(v: unknown): Zone | null {
   const z = v as Partial<Zone> | null;
