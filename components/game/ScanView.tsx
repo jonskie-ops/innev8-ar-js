@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { pad2 } from "@/lib/dom";
 import { unlocked, type Station } from "@/lib/hunt";
 import { getHunt, useHunt } from "@/lib/huntStore";
+import { COLLECT_HIT_MS } from "@/lib/sfx";
 import { useProgress } from "@/lib/store";
 import { ScanQufoo, type Line } from "../Mascot";
 import type { ArPhase, ArStage, CamState, Guide } from "./ar/stage";
@@ -170,7 +171,7 @@ export function ScanView({
         : phase === "ready"
           ? { text: "Tap it to collect it!" }
           : phase === "collecting"
-            ? { text: "Got it! Good job!" }
+            ? { text: "Got it! Good job!", wait: COLLECT_HIT_MS } // after the collect sound's hit
             : phase === "done"
               ? { text: `You found all ${stations.length}! Amazing!` }
               : null;

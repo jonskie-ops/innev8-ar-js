@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import type { Station } from "@/lib/hunt";
+import { playCollect } from "@/lib/sfx";
 import { createZoomTracker } from "./flow";
 import { buildQr3d, RARITY_HEX, type Qr3d } from "./qr3d";
 
@@ -461,6 +462,7 @@ export async function createArStage(
   };
   const collect = () => {
     navigator.vibrate?.([20, 40, 80]);
+    playCollect();
     go("collecting");
   };
   // In WebXR a screen tap arrives as a "select" along a ray from the phone

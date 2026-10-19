@@ -16,16 +16,17 @@ export const MASCOT = "Qufoo";
  * it plays: `audio`, or the recorded clip that matches its words (lib/voice.ts), or the words in
  * `say` when the recording's differ from the text (a clip can't say the player's name, so it's the
  * line without it). Text before the words in `say` shows at once (e.g. "Sniff sniff…", after you've
- * heard him sniffing).
+ * heard him sniffing). `wait`: milliseconds before he starts saying it (e.g. after a sound).
  */
-export type Line = { text: string; say?: string; audio?: string };
-/** A line's voice clip, and how many characters of its text come before the clip's words. */
-function clipOf(line?: Line | null): { clip?: string; lead: number } {
-  if (!line) return { lead: 0 };
+export type Line = { text: string; say?: string; audio?: string; wait?: number };
+/** A line's voice clip, how many characters of its text come before the clip's words, and its wait. */
+function clipOf(line?: Line | null): { clip?: string; lead: number; wait: number } {
+  if (!line) return { lead: 0, wait: 0 };
   const said = line.say ?? line.text;
   return {
     clip: line.audio ?? voiceFor(said),
     lead: line.text.endsWith(said) ? line.text.length - said.length : 0,
+    wait: line.wait ?? 0,
   };
 }
 
@@ -270,9 +271,10 @@ type Said = "wait" | "hush" | "go";
  * VOICE_WAIT_MS), "hush" if the phone wants a tap first (`sayNow`, from that tap, says it).
  * `cps`: how fast to type the words (after the `lead` characters) so they come as he says them.
  * `voice`: the clip is playing. With `keep`, a clip plays to its end even if he goes (the scanner
- * closes as he says "Got it!").
+ * closes as he says "Got it!"). `wait`: milliseconds before the clip starts (the line before it
+ * stops at once).
  */
-function useVoice(line: unknown, text: string, clip: string | undefined, lead: number, on: boolean, keep = false) {
+function useVoice(line: unknown, text: string, clip: string | undefined, lead: number, on: boolean, keep = false, wait = 0) {
   const [heard, setHeard] = useState<{ line?: unknown; said: Said; secs: number }>({ said: "wait", secs: 0 });
   const [voice, setVoice] = useState(false);
   const leaving = useRef(false);
@@ -302,13 +304,18 @@ function useVoice(line: unknown, text: string, clip: string | undefined, lead: n
       open = false;
       setHeard({ line, said: s, secs: lengthOf(a) });
     };
-    speak(a).then(
-      () => settle("go"),
-      (e: DOMException) => settle(e.name === "NotAllowedError" ? "hush" : "go"), // a broken clip: words only
-    );
-    const id = window.setTimeout(() => settle("go"), VOICE_WAIT_MS);
+    const start = () =>
+      speak(a).then(
+        () => settle("go"),
+        (e: DOMException) => settle(e.name === "NotAllowedError" ? "hush" : "go"), // a broken clip: words only
+      );
+    let later = 0;
+    if (wait > 0) later = window.setTimeout(start, wait);
+    else void start();
+    const id = window.setTimeout(() => settle("go"), wait + VOICE_WAIT_MS);
     return () => {
       open = false;
+      clearTimeout(later);
       clearTimeout(id);
       a.removeEventListener("playing", playing);
       a.removeEventListener("pause", stopped);
@@ -316,7 +323,7 @@ function useVoice(line: unknown, text: string, clip: string | undefined, lead: n
       setVoice(false);
       if (!(keep && leaving.current) && a.getAttribute("src") === clip) a.pause();
     };
-  }, [line, clip, on, keep]);
+  }, [line, clip, on, keep, wait]);
 
   const sayNow = () => {
     if (!clip) return;
@@ -734,9 +741,9 @@ export function ScanQufoo({ say }: { say: Line | null }) {
   const sniffRef = useRef<HTMLCanvasElement>(null);
   const talking = say !== null;
   const text = say?.text ?? "";
-  const { clip, lead } = clipOf(say);
+  const { clip, lead, wait } = clipOf(say);
   // Said out loud; a clip plays to its end even when the scanner closes (e.g. "Got it! Good job!")
-  const { said, cps, voice } = useVoice(text, text, clip, lead, talking, true);
+  const { said, cps, voice } = useVoice(text, text, clip, lead, talking, true, wait);
   const { typed, done } = useTyping(text, talking && said !== "wait", reduced, cps, lead);
 
   // Sniffing, on a loop, while he isn't talking, with the sniff sound in step: each frame is picked
