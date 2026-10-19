@@ -1,3 +1,4 @@
+import { duckFor } from "./music";
 import { voiceFor } from "./voice";
 
 /** The sound of collecting a QR code ("collect.mp3", added with scripts/voice.mjs). */
@@ -16,6 +17,7 @@ const sound = () => {
     a.preload = "auto";
     // Back to the start as soon as it ends, so the next tap plays it straight away
     a.addEventListener("ended", () => (a.currentTime = 0));
+    duckFor(a);
     el = a;
   }
   return el;

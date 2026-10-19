@@ -4,6 +4,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { prefersReducedMotion } from "@/lib/dom";
 import { getHunt } from "@/lib/huntStore";
+import { duckFor } from "@/lib/music";
 import { progress, useProgress, type Progress } from "@/lib/store";
 import { anyClip, voiceFor } from "@/lib/voice";
 import { useSplashDone } from "./Splash";
@@ -234,7 +235,13 @@ const useIntroOver = () =>
 // the clips that come on their own (the scanner's) too.
 let voiceEl: HTMLAudioElement | null = null;
 let unlocked = false;
-const player = () => (voiceEl ??= new Audio());
+const player = () => {
+  if (!voiceEl) {
+    voiceEl = new Audio();
+    duckFor(voiceEl); // the music goes quiet while he talks (or sniffs)
+  }
+  return voiceEl;
+};
 function loadClip(src: string) {
   const a = player();
   if (a.getAttribute("src") !== src) a.src = src;
