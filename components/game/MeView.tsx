@@ -4,10 +4,12 @@
 import { useEffect, useRef, useState } from "react";
 import { levelOf, standing } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
+import { forgetHunter, joinHunter, loadMeetings, savedHunter, savedMeetings, updateHunter, type Hunter, type Met } from "@/lib/hunter";
 import { PROVINCES } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
 import { GetApp } from "../GetApp";
+import { HunterQr } from "./HunterQr";
 import { I8Mark } from "./I8Mark";
 import {
   ArrowRightIcon,
@@ -19,6 +21,7 @@ import {
   PencilIcon,
   PinIcon,
   TrashIcon,
+  UsersIcon,
 } from "./icons";
 import { MiniClock } from "./MiniClock";
 import { QrTile } from "./QrTile";
@@ -78,6 +81,7 @@ export function MeView({
   const canSave = draftName.trim() !== "";
   const wipe = () => {
     progress.clear();
+    forgetHunter(); // a new hunter next time
     location.replace("/"); // a fresh start: splash, mascot, sign-up
   };
   const lost = count ? `your ${count} QR code${count > 1 ? "s" : ""}` : "progress";
@@ -206,6 +210,8 @@ export function MeView({
                     if (!canSave) return;
                     if (draftName.trim() !== name) progress.rename(draftName);
                     if (draftProvince !== province) progress.setProvince(draftProvince);
+                    // The hunters they meet see the new ones
+                    if (draftName.trim() !== name || draftProvince !== province) updateHunter(draftName, draftProvince);
                     setEditing(false);
                   }}
                 >
@@ -283,6 +289,8 @@ export function MeView({
           </div>
         </section>
 
+        <HunterSection name={name} province={province} />
+
         <GetApp variant="section" />
 
         {phase === "before" && (
@@ -340,5 +348,61 @@ export function MeView({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Networking: this player's hunter QR, for other hunters to scan (extra tasks), and the hunters
+ * they've met. The QR needs their hunter ID, made the first time they're online after signing up.
+ */
+function HunterSection({ name, province }: { name: string; province: string }) {
+  const [me, setMe] = useState<Hunter | null>(savedHunter);
+  const [met, setMet] = useState<Met[]>(savedMeetings);
+  useEffect(() => {
+    let alive = true;
+    void joinHunter(name, province).then(async (h) => {
+      if (!alive || !h) return;
+      setMe(h);
+      const list = await loadMeetings(h);
+      if (alive) setMet(list);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [name, province]);
+
+  return (
+    <section className="psec" aria-labelledby="me-hunter">
+      <div className="psec__head">
+        <span className="psec__icon">
+          <UsersIcon />
+        </span>
+        <span className="psec__title" id="me-hunter">
+          Your hunter QR
+        </span>
+        <span className="psec__meta">{met.length ? `${met.length} met` : ""}</span>
+      </div>
+      <div className="psec__body hunter">
+        {me ? (
+          <HunterQr hunter={me} name={name} />
+        ) : (
+          <p className="test-note">Connect to the internet once to get your hunter QR.</p>
+        )}
+        <p className="hunter__how">
+          Some QR codes have an extra task: meet another hunter. Let them scan this, or scan theirs. It counts for both
+          of you.
+        </p>
+        {met.length > 0 && (
+          <ul className="hunter__met">
+            {met.map((m) => (
+              <li key={m.id}>
+                <b>{m.name}</b>
+                <small>{m.province}</small>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }

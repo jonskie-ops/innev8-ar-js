@@ -37,6 +37,8 @@ export type Station = {
   rarity: Rarity;
   /** What finding it is worth (set per code in the admin; by rarity unless changed). */
   points: number;
+  /** An extra task to do before it can be found (networking), or none. */
+  task: Task;
   clue: string;
   blurb: string;
   /** Position on the venue map. */
@@ -44,7 +46,7 @@ export type Station = {
   y: number;
 };
 
-const BUILT_IN_STATIONS: Omit<Station, "points">[] = [
+const BUILT_IN_STATIONS: Omit<Station, "points" | "task">[] = [
   {
     id: "px01",
     code: "I8AR-01-M2VD",
@@ -155,6 +157,20 @@ export const POINTS: Record<Rarity, number> = { common: 100, rare: 250, legendar
 export const RARITY_LABEL: Record<Rarity, string> = { common: "Common", rare: "Rare", legendary: "Legendary" };
 export const RARITIES: Rarity[] = ["common", "rare", "legendary"];
 
+/**
+ * Networking: an extra task the organisers can give a code, done after reading its clue. Until it's
+ * done the code stays locked. Meeting tasks need a hunter the player hasn't used for another code.
+ */
+export type Task = "none" | "any" | "province" | "selfie";
+export const TASKS: Task[] = ["none", "any", "province", "selfie"];
+export const TASK_TEXT: Record<Exclude<Task, "none">, string> = {
+  any: "Meet another hunter: scan their hunter QR, or let them scan yours.",
+  province: "Meet a hunter from another province: scan their hunter QR, or let them scan yours.",
+  selfie: "Take a selfie with another hunter.",
+};
+/** Can this code be looked for yet? (No task, or its task is done.) */
+export const unlocked = (s: Station, tasks: Record<string, unknown> | undefined) => s.task === "none" || Boolean(tasks?.[s.id]);
+
 /** Who wins a prize: every code, a number of codes, the legendary code, or a number of points. */
 export type PrizeRule = "all" | "count" | "legendary" | "points";
 export type Prize = {
@@ -182,7 +198,7 @@ export type Settings = {
 export type Hunt = { stations: Station[]; zones: Zone[]; prizes: Prize[]; settings: Settings };
 
 export const BUILT_IN: Hunt = {
-  stations: BUILT_IN_STATIONS.map((s) => ({ ...s, points: POINTS[s.rarity] })),
+  stations: BUILT_IN_STATIONS.map((s) => ({ ...s, points: POINTS[s.rarity], task: "none" as const })),
   zones: BUILT_IN_ZONES,
   prizes: [],
   settings: { start: EVENT_START.getTime(), end: EVENT_END.getTime(), testMode: TEST_MODE, claimPlace: "INNEV8 help desk" },

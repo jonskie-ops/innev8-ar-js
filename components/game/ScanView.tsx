@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { pad2 } from "@/lib/dom";
-import type { Station } from "@/lib/hunt";
+import { unlocked, type Station } from "@/lib/hunt";
 import { getHunt, useHunt } from "@/lib/huntStore";
+import { useProgress } from "@/lib/store";
 import { ScanQufoo, type Line } from "../Mascot";
 import type { ArPhase, ArStage, CamState, Guide } from "./ar/stage";
-import { ArrowRightIcon, CameraOffIcon, CloseIcon } from "./icons";
+import { ArrowRightIcon, CameraOffIcon, CloseIcon, LockIcon } from "./icons";
 import { QrTile } from "./QrTile";
 
 /** Codes hidden around the player each time the scanner opens. */
@@ -26,6 +27,7 @@ const CAM_MESSAGE: Partial<Record<CamState, string>> = {
 
 /** A few of the codes still to find, always including the one the player chose (if any). */
 function pickHidden(stations: Station[], found: Record<string, number>, target?: Station) {
+  // (stations: the ones that can be found now, not locked by an extra task)
   const rest = stations.filter((s) => !found[s.id] && s !== target).sort(() => Math.random() - 0.5);
   return (target && !found[target.id] ? [target, ...rest] : rest).slice(0, PER_SCAN);
 }
@@ -59,8 +61,11 @@ export function ScanView({
   // The codes as they are when the scanner opens (a change from the admin meanwhile waits until next time)
   const [stations] = useState(() => getHunt().hunt.stations);
   const testMode = useHunt().hunt.settings.testMode;
-  const [start] = useState(() => (target && !found[target.id] ? target : stations.find((s) => !found[s.id])));
-  const [hidden] = useState(() => pickHidden(stations, found, start));
+  const { tasks } = useProgress();
+  // Codes still locked by an extra task can't be found here (the game opens their task instead)
+  const [open] = useState(() => stations.filter((s) => unlocked(s, tasks)));
+  const [start] = useState(() => (target && !found[target.id] && open.includes(target) ? target : open.find((s) => !found[s.id])));
+  const [hidden] = useState(() => pickHidden(open, found, start));
   const [chosen, setChosen] = useState(start); // changed in the strip at the bottom
   const [phase, setPhase] = useState<ArPhase | "loading">("loading");
   const [station, setStation] = useState<Station | null>(null);
@@ -261,18 +266,26 @@ export function ScanView({
           {stations.map((s, i) => {
             const got = Boolean(found[s.id]);
             const on = chosen === s;
+            const locked = !got && !open.includes(s);
             return (
               <button
                 key={s.id}
                 type="button"
-                className={on ? "scan__code is-on" : "scan__code"}
-                disabled={got}
+                className={`scan__code${on ? " is-on" : ""}${locked ? " is-locked" : ""}`}
+                disabled={got || locked}
                 aria-pressed={on}
-                aria-label={got ? `QR code #${s.num}, found` : `Look for QR code #${s.num}`}
+                aria-label={
+                  got ? `QR code #${s.num}, found` : locked ? `QR code #${s.num}: do its extra task first` : `Look for QR code #${s.num}`
+                }
                 onClick={() => choose(s)}
               >
                 <QrTile station={s} state={got ? "found" : "locked"} size="sm" i={i} />
                 <span className="scan__code-num">{pad2(s.num)}</span>
+                {locked && (
+                  <span className="scan__code-lock" aria-hidden="true">
+                    <LockIcon />
+                  </span>
+                )}
               </button>
             );
           })}

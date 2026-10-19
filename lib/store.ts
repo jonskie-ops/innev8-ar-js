@@ -15,6 +15,11 @@ export type Progress = {
    * "quests", "me", "scan"). Missing for players who signed up before the tour existed: no tour.
    */
   tour?: string[];
+  /**
+   * Extra tasks done: code id → who they did it with (a hunter's id, or "selfie") and when. Each
+   * hunter counts for one code only.
+   */
+  tasks?: Record<string, { with: string; at: number }>;
 };
 
 const KEY = "i8ar-progress-v1";
@@ -78,6 +83,12 @@ export const progress = {
   },
   setProvince(province: string) {
     write({ ...read(), province });
+  },
+  /** An extra task done: the code can now be looked for. */
+  doTask(codeId: string, withId: string) {
+    const p = read();
+    if (p.tasks?.[codeId]) return;
+    write({ ...p, tasks: { ...p.tasks, [codeId]: { with: withId, at: Date.now() } } });
   },
   /** Returns false if that QR code was already collected. */
   collect(id: string) {

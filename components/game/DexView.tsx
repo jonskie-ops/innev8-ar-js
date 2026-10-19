@@ -3,9 +3,10 @@
 
 import { useState, type CSSProperties } from "react";
 import { pad2 } from "@/lib/dom";
-import { prizeProgress, RARITY_LABEL, ruleText, standing, zoneName, type Prize, type Station } from "@/lib/hunt";
+import { prizeProgress, RARITY_LABEL, ruleText, standing, TASK_TEXT, unlocked, zoneName, type Prize, type Station } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
-import { CheckIcon, DexIcon, GiftIcon, ListIcon, MapIcon, ScanIcon } from "./icons";
+import { useProgress } from "@/lib/store";
+import { CheckIcon, DexIcon, GiftIcon, ListIcon, LockIcon, MapIcon, ScanIcon } from "./icons";
 import { QrTile } from "./QrTile";
 
 const timeFmt = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -207,6 +208,7 @@ function Details({
   onFind: (station: Station) => void;
   onShowOnMap: (id: string) => void;
 }) {
+  const { tasks } = useProgress();
   if (foundAt) {
     return (
       <>
@@ -215,13 +217,20 @@ function Details({
       </>
     );
   }
+  const open = unlocked(station, tasks);
   return (
     <>
       <p>“{station.clue}”</p>
+      {station.task !== "none" && (
+        <p className={open ? "taskline is-done" : "taskline"}>
+          {open ? <CheckIcon /> : <LockIcon />}
+          {open ? "Extra task done" : TASK_TEXT[station.task]}
+        </p>
+      )}
       <div className="dex__actions">
         <button type="button" className="btn btn--primary btn--sm" onClick={() => onFind(station)}>
-          <ScanIcon />
-          Find it
+          {open ? <ScanIcon /> : <LockIcon />}
+          {open ? "Find it" : "Do the task"}
         </button>
         <button type="button" className="btn btn--ghost btn--sm" onClick={() => onShowOnMap(station.id)}>
           <MapIcon />

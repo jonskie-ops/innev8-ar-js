@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { BUILT_IN, RARITIES, type Hunt, type Prize, type PrizeRule, type Station, type Zone } from "./hunt";
+import { BUILT_IN, RARITIES, TASKS, type Hunt, type Prize, type PrizeRule, type Station, type Task, type Zone } from "./hunt";
 
 /**
  * The hunt on this phone: the latest copy of what the organisers set (from /api/hunt), saved so the
@@ -137,7 +137,8 @@ function parseStation(v: unknown): Station | null {
   if (!s || !str(s.id) || !str(s.code) || !num(s.num) || !str(s.name) || !str(s.zone) || !str(s.spot)) return null;
   if (!RARITIES.includes(s.rarity as Station["rarity"]) || !num(s.points) || !str(s.clue) || !str(s.blurb)) return null;
   if (!num(s.x) || !num(s.y)) return null;
-  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y };
+  const task: Task = TASKS.includes(s.task as Task) ? (s.task as Task) : "none"; // copies saved before tasks: none
+  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, task, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y };
 }
 function parseZone(v: unknown): Zone | null {
   const z = v as Partial<Zone> | null;

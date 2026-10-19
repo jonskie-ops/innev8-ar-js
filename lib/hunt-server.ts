@@ -1,5 +1,5 @@
 import { cacheLife } from "next/cache";
-import type { Hunt, Prize, PrizeRule, Rarity, Station, Zone } from "./hunt";
+import { TASKS, type Hunt, type Prize, type PrizeRule, type Rarity, type Station, type Task, type Zone } from "./hunt";
 
 /**
  * The hunt as the organisers set it in the admin, read from its Supabase database with the public
@@ -27,7 +27,8 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
       return res.json();
     };
     const [codes, zones, prizes, settings] = await Promise.all([
-      get<CodeRow>("codes?select=id,code,num,name,zone_id,spot,rarity,points,clue,blurb,x,y&live=eq.true&order=num"),
+      // Every column: a database without the networking update yet simply has no task
+      get<CodeRow>("codes?select=*&live=eq.true&order=num"),
       get<ZoneRow>("zones?select=id,name,label_x,label_y&order=sort,name"),
       get<PrizeRow>("prizes?select=id,name,description,photo_path,rule,rule_value&live=eq.true&order=sort,created_at"),
       get<SettingsRow>("settings?select=starts_at,ends_at,test_mode,claim_place&limit=1"),
@@ -47,6 +48,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             spot: c.spot,
             rarity: c.rarity,
             points: c.points,
+            task: TASKS.includes(c.task as Task) ? (c.task as Task) : "none",
             clue: c.clue,
             blurb: c.blurb,
             x: Number(c.x),
@@ -97,6 +99,7 @@ type CodeRow = {
   blurb: string;
   x: number | string;
   y: number | string;
+  task?: string;
 };
 type ZoneRow = { id: string; name: string; label_x: number | string | null; label_y: number | string | null };
 type PrizeRow = {

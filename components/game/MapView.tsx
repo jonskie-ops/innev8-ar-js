@@ -1,9 +1,10 @@
 "use client";
 
 import { pad2 } from "@/lib/dom";
-import { RARITY_LABEL, zoneName, type Station } from "@/lib/hunt";
+import { RARITY_LABEL, TASK_TEXT, unlocked, zoneName, type Station } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
-import { CheckIcon, CloseIcon, ScanIcon } from "./icons";
+import { useProgress } from "@/lib/store";
+import { CheckIcon, CloseIcon, LockIcon, ScanIcon } from "./icons";
 import { QrTile } from "./QrTile";
 import { VenueMap } from "./VenueMap";
 
@@ -21,6 +22,7 @@ export function MapView({
   onScan: (station: Station) => void;
 }) {
   const { hunt } = useHunt();
+  const { tasks } = useProgress();
   const sel = hunt.stations.find((s) => s.id === focus);
 
   return (
@@ -51,9 +53,15 @@ export function MapView({
             ) : (
               <>
                 <p className="station__clue">“{sel.clue}”</p>
+                {sel.task !== "none" && (
+                  <p className={unlocked(sel, tasks) ? "taskline is-done" : "taskline"}>
+                    {unlocked(sel, tasks) ? <CheckIcon /> : <LockIcon />}
+                    {unlocked(sel, tasks) ? "Extra task done" : TASK_TEXT[sel.task]}
+                  </p>
+                )}
                 <button type="button" className="btn btn--primary btn--sm" onClick={() => onScan(sel)}>
-                  <ScanIcon />
-                  Find it
+                  {unlocked(sel, tasks) ? <ScanIcon /> : <LockIcon />}
+                  {unlocked(sel, tasks) ? "Find it" : "Do the task"}
                 </button>
               </>
             )}

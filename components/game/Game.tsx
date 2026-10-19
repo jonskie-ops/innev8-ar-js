@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { prizeProgress, standing, stationFromPayload, type Prize, type Station } from "@/lib/hunt";
+import { prizeProgress, standing, stationFromPayload, unlocked, type Prize, type Station } from "@/lib/hunt";
+import { joinHunter } from "@/lib/hunter";
 import { getHunt, useHunt } from "@/lib/huntStore";
 import { askMotion } from "@/lib/motion";
 import { progress, useProgress } from "@/lib/store";
@@ -18,6 +19,7 @@ import { Onboarding } from "./Onboarding";
 import { PrizeCard } from "./PrizeCard";
 import { QuestsView } from "./QuestsView";
 import { ScanView } from "./ScanView";
+import { TaskSheet } from "./TaskSheet";
 
 type Tab = "map" | "dex" | "quests" | "me";
 
@@ -50,6 +52,8 @@ export function Game({ phase }: { phase: Phase }) {
   // Just collected: the code, and a prize that catch won (if it did)
   const [caught, setCaught] = useState<{ station: Station; won: Prize | null } | null>(null);
   const [overlay, setOverlay] = useState<"countdown" | { prize: Prize } | null>(null);
+  // A code's extra task, open
+  const [task, setTask] = useState<Station | null>(null);
   const [toast, showToast] = useToast();
   // A code opened from a link (/?s=<code>), waiting for onboarding.
   const [pending, setPending] = useState<Station | null>(null);
@@ -73,9 +77,15 @@ export function Game({ phase }: { phase: Phase }) {
   useEffect(() => {
     if (!pending || !signedUp) return;
     if (p.found[pending.id]) showToast(`You already found QR code #${pending.num}.`);
-    else setScan({ target: pending }); // eslint-disable-line react-hooks/set-state-in-effect -- opens the linked code's hunt once
+    else if (!unlocked(pending, p.tasks)) setTask(pending); // eslint-disable-line react-hooks/set-state-in-effect -- its extra task first
+    else setScan({ target: pending });
     setPending(null);
-  }, [pending, signedUp, p.found, showToast]);
+  }, [pending, signedUp, p.found, p.tasks, showToast]);
+
+  // Their hunter ID (networking), made in the background once they've signed up
+  useEffect(() => {
+    if (signedUp) void joinHunter(p.name, p.province);
+  }, [signedUp, p.name, p.province]);
 
   const closeScan = useCallback(() => setScan(null), []);
   // Fetch the AR scanner's 3D code in the background, so Scan opens quickly (and in time for the
@@ -93,6 +103,15 @@ export function Game({ phase }: { phase: Phase }) {
   // Opened by a tap, so iPhone can ask for the motion sensors the AR view turns with. The first time,
   // Qufoo explains scanning first, and the scanner opens with the tap that closes him.
   const openScan = (target?: Station) => {
+    // A code still locked by its extra task: the task first
+    if (target && !p.found[target.id] && !unlocked(target, p.tasks)) return setTask(target);
+    if (!target) {
+      const left = hunt.stations.filter((s) => !p.found[s.id]);
+      if (left.length && !left.some((s) => unlocked(s, p.tasks))) {
+        showToast("Every code left has an extra task: do one to unlock it.");
+        return setTask(left[0]);
+      }
+    }
     const open = () => {
       askMotion();
       setScan({ target });
@@ -222,6 +241,17 @@ export function Game({ phase }: { phase: Phase }) {
           onPrize={(prize) => {
             setCaught(null);
             setOverlay({ prize });
+          }}
+        />
+      )}
+
+      {task && (
+        <TaskSheet
+          station={task}
+          onClose={() => setTask(null)}
+          onFind={(s) => {
+            setTask(null);
+            openScan(s);
           }}
         />
       )}
