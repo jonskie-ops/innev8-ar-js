@@ -53,7 +53,6 @@ const LEAVE_MS = 450;
 const MAP_DELAY_MS = 500; // after sign-up, let the map appear before he comes up
 const VOICE_WAIT_MS = 1500; // a slow clip holds a line's words back at most this long
 
-type Screen = "countdown" | "game";
 type Stage = "wait" | "in" | "on" | "out" | "gone";
 /**
  * What he's saying; whether the sign-up guide takes over after the last line; and what happens once
@@ -64,19 +63,8 @@ type Talk = { lines: Line[]; guideNext: boolean; then?: () => void };
 const signedUp = (p: Progress) => p.onboarded && p.province !== "";
 
 /** Straight after the splash. A new player gets a hello, then the sign-up guide carries on. */
-function introTalk(screen: Screen, p: Progress): Talk {
+function introTalk(p: Progress): Talk {
   const name = p.name.trim();
-  if (screen === "countdown")
-    return {
-      lines: [
-        {
-          text: name ? `Hi, ${name}! I'm ${MASCOT}, your QR hunting buddy.` : `Hi! I'm ${MASCOT}, your QR hunting buddy.`,
-          say: `Hi! I'm ${MASCOT}, your QR hunting buddy.`,
-        },
-        { text: "The hunt opens on November 20 at the summit. See you there!" },
-      ],
-      guideNext: false,
-    };
   if (!signedUp(p))
     return {
       lines: [{ text: `Hi! I'm ${MASCOT}, your QR hunting buddy.` }, { text: "Let's get you signed up first!" }],
@@ -468,9 +456,9 @@ function Typed({ text, typed, className }: { text: string; typed: number; classN
  * Skip (or Esc) sends him away. He comes up once the splash has cleared (a hello for new players,
  * progress for returning ones); for new players he then tours the menu: the map right after
  * sign-up, and each menu button the first time it's tapped (see explainMenu). He stays away when a
- * QR code link opens the scanner.
+ * QR code link opens the scanner. The hunt only: the countdown doesn't show him.
  */
-export function Mascot({ screen }: { screen: Screen }) {
+export function Mascot() {
   const splashDone = useSplashDone();
   const progressNow = useProgress();
   const reduced = useReducedMotion();
@@ -496,12 +484,12 @@ export function Mascot({ screen }: { screen: Screen }) {
       return () => clearTimeout(id);
     }
     const id = window.setTimeout(() => {
-      setTalk(introTalk(screen, progressNow));
+      setTalk(introTalk(progressNow));
       setIndex(0);
       setStage("in");
     }, 0);
     return () => clearTimeout(id);
-  }, [skipIntro, splashDone, stage, sprite, waited, screen, progressNow]);
+  }, [skipIntro, splashDone, stage, sprite, waited, progressNow]);
 
   // Right after sign-up, on the map: the first stop of his tour
   const wasSignedUp = useRef(signedUp(progressNow));
