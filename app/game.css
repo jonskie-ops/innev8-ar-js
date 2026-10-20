@@ -649,6 +649,77 @@ code {
 .v3d__spot.is-focus .v3d__core {
   fill: #fff;
 }
+/* The selected code's range: in the scanner, it shows once the player is inside this ring */
+.v3d__range {
+  fill: rgba(18, 191, 234, 0.06);
+  stroke: var(--mc);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 4;
+  opacity: 0.85;
+}
+/* The player (GPS): a dot, pulsing, in a ring for how sure the fix is */
+.v3d__me-acc {
+  fill: rgba(79, 157, 255, 0.14);
+  stroke: rgba(79, 157, 255, 0.55);
+  stroke-width: 1;
+}
+.v3d__me-pulse {
+  fill: none;
+  stroke: #4f9dff;
+  stroke-width: 1.6;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: v3d-pulse 2s ease-out infinite;
+}
+.v3d__me-dot {
+  fill: #2f7bff;
+  stroke: #fff;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 4px rgba(79, 157, 255, 0.9));
+}
+.v3d__locate.is-on {
+  border-color: rgba(79, 157, 255, 0.7);
+  color: #9cc4ff;
+}
+/* Location on, but no dot on the map: why (or how far the codes are) */
+.mapview__where {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 80px);
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(2, 6, 17, 0.72);
+  color: var(--muted);
+  font: 600 11.5px/1.3 var(--font-m);
+  pointer-events: none;
+}
+.mapview__where svg,
+.station__far svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+/* The selected code's distance from the player */
+.station__far {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font: 600 12px/1.35 var(--font-m);
+}
+.station__far.is-in {
+  color: var(--turq);
+}
 .v3d__up {
   position: absolute;
   left: var(--x);
@@ -2326,6 +2397,158 @@ button.psec__head {
 .scan__code-num {
   font: 600 9px/1 var(--font-m);
   letter-spacing: 0.08em;
+}
+/* GPS: how far each code is, under its number; turquoise once it's in range */
+.scan__code-far {
+  font: 600 8.5px/1 var(--font-m);
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.scan__code.is-near:not(.is-on) .qrt__card {
+  box-shadow:
+    0 0 0 2px var(--turq),
+    0 0 12px rgba(32, 201, 188, 0.6);
+}
+.scan__code.is-near .scan__code-far {
+  color: var(--turq);
+}
+
+/* GPS: the meter under the top bar. How far the code headed for is (or "Here!"), an arrow toward it
+   once the compass is known, and a bar that fills as the player gets close. */
+.scan__meter {
+  position: absolute;
+  top: calc(max(14px, env(safe-area-inset-top)) + 50px);
+  left: 50%;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 5px 12px;
+  width: min(calc(100% - 32px), 340px);
+  padding: 10px 14px 10px 10px;
+  border-radius: 16px;
+  background: rgba(2, 6, 17, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(18, 191, 234, 0.35);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: fade-in 0.3s var(--ease-out);
+}
+.scan__meter.is-in {
+  box-shadow:
+    inset 0 0 0 1.5px var(--turq),
+    0 0 24px rgba(32, 201, 188, 0.35);
+}
+.scan__meter-dir {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(18, 191, 234, 0.14);
+  color: var(--cyan);
+}
+.scan__meter-dir svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+  stroke: none;
+  transform: rotate(var(--turn));
+  transition: transform 0.25s var(--ease-out);
+}
+.scan__meter-dir.is-unknown svg {
+  opacity: 0.35;
+  transform: none;
+}
+.scan__meter.is-in .scan__meter-dir {
+  background: rgba(32, 201, 188, 0.16);
+  color: var(--turq);
+}
+/* In range: no arrow, a pulse ("it's around you") */
+.scan__meter-dir.is-here i {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+}
+.scan__meter-dir.is-here i::before {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  animation: meter-here 1.4s var(--ease-out) infinite;
+}
+@keyframes meter-here {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+}
+.scan__meter-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.scan__meter-text b {
+  font: 700 15px/1.2 var(--font-h);
+}
+.scan__meter-text small {
+  overflow: hidden;
+  color: var(--muted);
+  font: 500 11px/1.3 var(--font-m);
+  letter-spacing: 0.03em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scan__meter-bar {
+  grid-column: 2;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(140, 190, 255, 0.16);
+}
+.scan__meter-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--royal), var(--cyan));
+  transition: width 0.4s var(--ease-out);
+}
+.scan__meter.is-in .scan__meter-bar i {
+  background: var(--turq);
+}
+/* (test mode) the radar moves down under the meter */
+.scan__meter ~ .scan__radar {
+  top: calc(max(14px, env(safe-area-inset-top)) + 128px);
+}
+/* GPS accuracy, in test mode or when it's weak */
+.chip--gps {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--turq);
+}
+.chip--gps.is-weak {
+  border-color: rgba(255, 107, 107, 0.5);
+  color: #ffb4b4;
+}
+/* No location: try again (and, in test mode, random spots instead) */
+.scan__locate {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 /* Catch / prize cards */
 .modal {

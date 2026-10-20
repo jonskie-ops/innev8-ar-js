@@ -1,6 +1,10 @@
 import { cacheLife } from "next/cache";
-import { TASKS, type Hunt, type Prize, type PrizeRule, type Rarity, type Station, type Task, type Zone } from "./hunt";
+import { toLatLng } from "./geo";
+import { RADIUS, TASKS, type Hunt, type Prize, type PrizeRule, type Rarity, type Station, type Task, type Zone } from "./hunt";
 import { firstSponsor } from "./sponsors";
+
+/** A number from a database row (Postgres numbers can arrive as strings), or null. */
+const n = (v: unknown) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
 /**
  * The hunt as the organisers set it in the admin, read from its Supabase database with the public
@@ -28,19 +32,25 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
       return res.json();
     };
     const [codes, zones, prizes, settings] = await Promise.all([
-      // Every column: a database without the networking or sponsors update yet simply has no task or sponsor
+      // Every column: a database without the networking, sponsors or GPS update yet simply has no task,
+      // sponsor or GPS spot (nor random spots, in the settings)
       get<CodeRow>("codes?select=*&live=eq.true&order=num"),
       get<ZoneRow>("zones?select=id,name,label_x,label_y&order=sort,name"),
       get<PrizeRow>("prizes?select=id,name,description,photo_path,rule,rule_value&live=eq.true&order=sort,created_at"),
-      get<SettingsRow>("settings?select=starts_at,ends_at,test_mode,claim_place&limit=1"),
+      get<SettingsRow>("settings?select=*&limit=1"),
     ]);
     const s = settings[0];
     if (!s) throw new Error("no settings");
     return {
       at,
       hunt: {
-        stations: codes.map(
-          (c): Station => ({
+        stations: codes.map((c): Station => {
+          // Its own GPS spot, or (none yet, or before the GPS update) where its venue map pin is
+          const lat = n(c.lat);
+          const lng = n(c.lng);
+          const spot = lat !== null && lng !== null ? { lat, lng } : toLatLng(Number(c.x), Number(c.y));
+          const radius = n(c.radius);
+          return {
             id: c.id,
             code: c.code.toUpperCase(),
             num: c.num,
@@ -56,8 +66,10 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             blurb: c.blurb,
             x: Number(c.x),
             y: Number(c.y),
-          }),
-        ),
+            ...spot,
+            radius: radius !== null && radius > 0 ? radius : RADIUS,
+          };
+        }),
         zones: zones.map(
           (z): Zone => ({
             id: z.id,
@@ -80,6 +92,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
           end: new Date(s.ends_at).getTime(),
           testMode: s.test_mode,
           claimPlace: s.claim_place,
+          randomSpots: s.random_spots === true,
         },
       },
     };
@@ -104,6 +117,9 @@ type CodeRow = {
   y: number | string;
   task?: string;
   sponsor?: string;
+  lat?: number | string | null;
+  lng?: number | string | null;
+  radius?: number | string;
 };
 type ZoneRow = { id: string; name: string; label_x: number | string | null; label_y: number | string | null };
 type PrizeRow = {
@@ -114,4 +130,4 @@ type PrizeRow = {
   rule: PrizeRule;
   rule_value: number | null;
 };
-type SettingsRow = { starts_at: string; ends_at: string; test_mode: boolean; claim_place: string };
+type SettingsRow = { starts_at: string; ends_at: string; test_mode: boolean; claim_place: string; random_spots?: boolean };

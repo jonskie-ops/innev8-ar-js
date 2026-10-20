@@ -1,9 +1,10 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { PLAN_PER_M } from "@/lib/geo";
 import { useHunt } from "@/lib/huntStore";
 import { VENUE } from "@/lib/venue";
-import { CheckIcon, FitIcon, MinusIcon, PlusIcon } from "./icons";
+import { CheckIcon, FitIcon, LocateIcon, MinusIcon, PlusIcon } from "./icons";
 import { cameraTransform, MAX_ZOOM, useMapCamera, type Home } from "./useMapCamera";
 
 /** The part of the 360×520 plan shown on the plane: framed on the two buildings (same aspect ratio). */
@@ -62,16 +63,24 @@ const LANDMARKS = [{ name: "Parking", x: 112, y: 452, tone: "dim" }] as const;
 /**
  * Leyte Academic Center as a glowing holographic site plan, seen straight from above (styled after
  * the main site's Eastern Visayas map). Zone names and QR spots stand on it like map pins; tap a spot
- * to select it. Pinch, wheel or the +/− buttons zoom (HOME.z–MAX_ZOOM); drag pans.
+ * to select it (its dashed ring: how close you must be for it to show in the scanner). Pinch, wheel or
+ * the +/− buttons zoom (HOME.z–MAX_ZOOM); drag pans. `me`: the player, as a dot with a ring for how
+ * sure the GPS is (plan units); the locate button turns that on and off.
  */
 export function VenueMap({
   found,
   focus,
   onFocus,
+  me = null,
+  locating = false,
+  onLocate,
 }: {
   found: Record<string, number>;
   focus: string | null;
   onFocus: (id: string) => void;
+  me?: { x: number; y: number; r: number } | null;
+  locating?: boolean;
+  onLocate?: () => void;
 }) {
   const { boxRef, layerRef, mapRef, cam, atHome, gesturing, zoomIn, zoomOut, reset } = useMapCamera(HOME);
   const zoomed = cam.z > 1.001;
@@ -124,10 +133,20 @@ export function VenueMap({
                     focus === s.id ? " is-focus" : ""
                   }`}
                 >
+                  {focus === s.id && !found[s.id] && (
+                    <circle className="v3d__range" cx={s.x} cy={s.y} r={s.radius * PLAN_PER_M} />
+                  )}
                   {!found[s.id] && <circle className="v3d__ring" cx={s.x} cy={s.y} r="12" />}
                   <circle className="v3d__core" cx={s.x} cy={s.y} r="4.5" />
                 </g>
               ))}
+              {me && (
+                <g className="v3d__me">
+                  <circle className="v3d__me-acc" cx={me.x} cy={me.y} r={me.r} />
+                  <circle className="v3d__me-pulse" cx={me.x} cy={me.y} r="7" />
+                  <circle className="v3d__me-dot" cx={me.x} cy={me.y} r="4.4" />
+                </g>
+              )}
             </svg>
 
             {tags.map((z, i) => (
@@ -170,6 +189,17 @@ export function VenueMap({
       </div>
       <div className="v3d__vignette" aria-hidden="true"></div>
       <div className="v3d__zoom">
+        {onLocate && (
+          <button
+            type="button"
+            className={locating ? "icon-btn v3d__locate is-on" : "icon-btn v3d__locate"}
+            onClick={onLocate}
+            aria-pressed={locating}
+            aria-label={locating ? "Hide where I am" : "Show where I am"}
+          >
+            <LocateIcon />
+          </button>
+        )}
         <button type="button" className="icon-btn" onClick={zoomIn} disabled={cam.z >= MAX_ZOOM} aria-label="Zoom in">
           <PlusIcon />
         </button>

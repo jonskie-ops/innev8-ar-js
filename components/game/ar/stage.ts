@@ -35,18 +35,45 @@ export type ArEvents = {
   onEnd: () => void;
   /** While searching: a hidden code is (or is no longer) on screen. */
   onNear?: (near: boolean) => void;
+  /**
+   * Which way the phone's camera faces, in degrees clockwise from north (from its compass), or null
+   * while that isn't known (no compass, or not settled yet). For the scanner's arrow to a code.
+   */
+  onCompass?: (heading: number | null) => void;
+};
+
+/** A code within its distance of the player (GPS mode): which way it is and how far, from the GPS. */
+export type Near = {
+  station: Station;
+  /** Degrees clockwise from north. */
+  bearing: number;
+  /** Metres. */
+  distance: number;
 };
 
 export type ArStage = {
   /** Start full movement tracking; call from a tap. */
   startXr: () => void;
   /**
-   * The code the player wants to find (or none). If it isn't hidden around them yet, it's hidden now
-   * (the codes are placed again, while still searching). The guide points to it.
+   * The code the player wants to find (or none). Random spots: if it isn't hidden around them yet,
+   * it's hidden now (the codes are placed again, while still searching). The guide points to it.
    */
   setTarget: (station: Station | undefined) => void;
+  /**
+   * GPS mode: the codes the player is within range of now. A code coming into range appears in its
+   * direction (once the compass is known; until then, somewhere ahead) at about its distance; one
+   * going out of range goes. A code stays put once placed, unless the GPS and the view disagree a
+   * lot about where it is while it's off screen.
+   */
+  setNearby: (near: Near[]) => void;
   dispose: () => void;
 };
+
+/**
+ * random: a few codes hidden around the player wherever they are (for trying it anywhere).
+ * gps: each code where it really is, shown once the player is in range of it (setNearby).
+ */
+export type ArMode = "random" | "gps";
 
 const DIST = 3.2; // how far away the nearest code sits (and every code, when walking can't be read)
 const FAR = 9; // the farthest: the codes are spread from DIST to FAR, so most need walking up to
@@ -68,6 +95,15 @@ const AIM_S = 0.45; // hold a code in the frame this long to reveal it
 const AIM_X = 0.5;
 const AIM_Y = 0.24;
 const NEAR_OUT = 1.3; // "near" starts when a code in reach is on screen and ends once it's this far out
+// GPS mode: a code is placed at its GPS distance, kept within what the view can show and walk up to
+// (the GPS is only good to a few metres anyway), and moved only when the GPS and the view disagree by
+// this much (direction, distance) while it's off screen. Real tracking (WebXR) is trusted more.
+const GPS_XR_FAR = 8;
+const DRIFT = { xr: { turn: 60, metres: 6 }, view: { turn: 35, metres: 4 } };
+// The compass: how much each new reading moves the estimate of north (quicker at first)
+const NORTH_FIRST = 0.3;
+const NORTH_EASE = 0.05;
+const NORTH_SETTLED = 6; // readings before it's trusted
 const REVEAL_S = 1.6;
 const COLLECT_S = 1.25;
 const BURST = 120;
@@ -116,12 +152,16 @@ export async function createArStage(
   video: HTMLVideoElement,
   /** The scanner's root element: stays on screen over the AR view (WebXR DOM overlay). */
   overlay: HTMLElement,
+  /** Random spots: the codes to hide around the player. GPS: every code still to find here. */
   hide: Station[],
   target: Station | undefined,
   ev: ArEvents,
+  mode: ArMode = "random",
 ): Promise<ArStage> {
   let hidden = hide;
   let wanted = target;
+  const gpsMode = mode === "gps";
+  let nearby: Near[] = []; // GPS mode: the codes in range now
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -319,20 +359,49 @@ export async function createArStage(
   };
 
   let xr = false; // WebXR session running: real movement tracking, real distances
-  const place = () => {
-    for (const c of codes) {
-      c.spot.removeFromParent();
-      c.qr.dispose();
-      (c.shimmer.material as THREE.Material).dispose();
-    }
+
+  /**
+   * A code's spot, `d` away in direction `yaw` (the view's own frame) and `rise` above or below the
+   * phone, facing the player. `near`: the nearest a code usually sits (its shimmer is sized from it).
+   */
+  const makeSpot = (station: Station, yaw: number, d: number, rise: number, near: number): Hidden => {
+    const c0 = cam.position;
+    const spot = new THREE.Group();
+    spot.position.set(c0.x - Math.sin(yaw) * d, c0.y + rise, c0.z - Math.cos(yaw) * d);
+    spot.lookAt(c0.x, c0.y + (spot.position.y - c0.y) * 0.6, c0.z); // face the player, roughly upright
+    const sway = new THREE.Group();
+    sway.scale.setScalar(xr ? XR_SIZE : SIZE);
+    spot.add(sway);
+    const qr = buildQr3d(station);
+    qr.root.visible = false;
+    sway.add(qr.root);
+    const ghost = new THREE.Mesh(ghostGeo, ghostMat);
+    ghost.position.z = -0.04;
+    ghost.visible = false;
+    sway.add(ghost);
+    // Its shimmer starts as easy to spot as a near one's, and grows as you walk up to it
+    const mat = shimmerMat.clone();
+    mat.size *= d / near;
+    const shimmer = new THREE.Points(shimmerGeo, mat);
+    spot.add(shimmer);
+    scene.add(spot);
+    return { station, qr, spot, sway, shimmer, ghost, got: false };
+  };
+  const drop = (c: Hidden) => {
+    c.spot.removeFromParent();
+    c.qr.dispose();
+    (c.shimmer.material as THREE.Material).dispose();
+  };
+
+  // ---- Random spots: the codes spread round the room, wherever the player is
+  const placeRandom = () => {
+    for (const c of codes) drop(c);
     const n = hidden.length;
     const dist = xr ? XR_DIST : DIST;
     // Walking can be read (WebXR, or the camera): spread the codes from near to far, in random order
     const far = xr ? XR_FAR : camOn ? FAR : DIST;
     const away = hidden.map((_, i) => (n > 1 ? dist + ((far - dist) * i) / (n - 1) : dist)).sort(() => Math.random() - 0.5);
-    const size = xr ? XR_SIZE : SIZE;
-    fx.scale.setScalar(size / 0.72); // the halo, rings and burst were sized for a 0.72-scale code
-    const c0 = cam.position;
+    fx.scale.setScalar((xr ? XR_SIZE : SIZE) / 0.72); // the halo, rings and burst were sized for a 0.72-scale code
     // Spread round the room in a random order, the nearest at least ~45° from where the phone points.
     const base = heading() + deg(45 + Math.random() * 30) * (Math.random() < 0.5 ? 1 : -1);
     const slots = hidden.map((_, i) => i).sort(() => Math.random() - 0.5);
@@ -340,49 +409,123 @@ export async function createArStage(
       const yaw = base + (slots[i] * Math.PI * 2) / n + deg((Math.random() - 0.5) * 40);
       // Between chest and head height (a little below the phone to a little above), however far
       const rise = -0.7 + Math.random() * 1.15;
-      const spot = new THREE.Group();
-      const d = away[i];
-      spot.position.set(c0.x - Math.sin(yaw) * d, c0.y + rise, c0.z - Math.cos(yaw) * d);
-      spot.lookAt(c0.x, c0.y + (spot.position.y - c0.y) * 0.6, c0.z); // face the player, roughly upright
-      const sway = new THREE.Group();
-      sway.scale.setScalar(size);
-      spot.add(sway);
-      const qr = buildQr3d(station);
-      qr.root.visible = false;
-      sway.add(qr.root);
-      const ghost = new THREE.Mesh(ghostGeo, ghostMat);
-      ghost.position.z = -0.04;
-      ghost.visible = false;
-      sway.add(ghost);
-      // Its shimmer starts as easy to spot as a near one's, and grows as you walk up to it
-      const mat = shimmerMat.clone();
-      mat.size *= d / dist;
-      const shimmer = new THREE.Points(shimmerGeo, mat);
-      spot.add(shimmer);
-      scene.add(spot);
-      return { station, qr, spot, sway, shimmer, ghost, got: false };
+      return makeSpot(station, yaw, away[i], rise, dist);
     });
     aimFor = 0;
   };
+
+  // ---- Which way is north (GPS mode): the camera's compass heading, against its heading in the
+  // view's own frame. Android sends compass-based angles as "deviceorientationabsolute"; iPhone adds
+  // webkitCompassHeading to each "deviceorientation". Smoothed, as compasses wobble (more so near
+  // steel and wiring); trusted after a few readings.
+  let northYaw: number | null = null; // the view's yaw that faces north
+  let northN = 0;
+  const knowNorth = () => northYaw !== null && northN >= NORTH_SETTLED;
+  const absQ = new THREE.Quaternion();
+  const oq = new THREE.Euler();
+  const sq = new THREE.Quaternion();
+  const fwd = new THREE.Vector3();
+  /** The phone's orientation (device orientation angles, degrees) as the camera's rotation. */
+  const orientQ = (alpha: number, beta: number, gamma: number, out: THREE.Quaternion) =>
+    out
+      .setFromEuler(oq.set(deg(beta), deg(alpha), -deg(gamma), "YXZ"))
+      .multiply(qBack)
+      .multiply(sq.setFromAxisAngle(zee, -deg(screen.orientation?.angle ?? 0)));
+  /** Which way a camera rotation faces, as a yaw; null when it points at the floor or ceiling. */
+  const yawOf = (q: THREE.Quaternion) => {
+    fwd.set(0, 0, -1).applyQuaternion(q);
+    return Math.abs(fwd.y) > 0.9 ? null : Math.atan2(-fwd.x, -fwd.z);
+  };
+  const noteNorth = (compass: number | null, frame: number | null) => {
+    if (compass === null || frame === null) return;
+    const off = frame - compass;
+    if (northYaw === null) northYaw = off;
+    else
+      northYaw +=
+        (northN < NORTH_SETTLED ? NORTH_FIRST : NORTH_EASE) * Math.atan2(Math.sin(off - northYaw), Math.cos(off - northYaw));
+    northN++;
+    // Codes placed "somewhere ahead" while north wasn't known go where they really are
+    if (northN === NORTH_SETTLED && gpsMode && phase === "searching") placeGps();
+  };
+
+  // ---- GPS mode: each code in range, in its direction from the player at about its distance
+  const placedKnowingNorth = new Map<string, boolean>();
+  const gv = new THREE.Vector3();
+  const gn = new THREE.Vector3();
+  const gpsDistance = (m: number) =>
+    xr ? THREE.MathUtils.clamp(m, XR_DIST, GPS_XR_FAR) : THREE.MathUtils.clamp(m, DIST, camOn ? FAR : DIST);
+  const onScreen = (c: Hidden) => {
+    gv.copy(c.spot.position).applyMatrix4(cam.matrixWorldInverse);
+    gn.copy(c.spot.position).project(cam);
+    return gv.z < 0 && Math.abs(gn.x) < 1.15 && Math.abs(gn.y) < 1.15;
+  };
+  const placeGps = (fresh = false) => {
+    if (active) return; // a code being revealed or collected stays where it is
+    if (fresh) {
+      for (const c of codes) drop(c);
+      codes = [];
+      placedKnowingNorth.clear();
+    }
+    fx.scale.setScalar((xr ? XR_SIZE : SIZE) / 0.72);
+    const inRange = new Set(nearby.map((n) => n.station.id));
+    codes = codes.filter((c) => {
+      if (!c.got && inRange.has(c.station.id)) return true;
+      drop(c); // out of range again (or found)
+      placedKnowingNorth.delete(c.station.id);
+      return false;
+    });
+    const limits = xr ? DRIFT.xr : DRIFT.view;
+    for (const n of nearby) {
+      const yaw = knowNorth() ? northYaw! - deg(n.bearing) : null;
+      const d = gpsDistance(n.distance);
+      const had = codes.find((c) => c.station.id === n.station.id);
+      if (had) {
+        if (yaw === null || onScreen(had)) continue; // no better idea, or the player's looking at it
+        gv.copy(had.spot.position).sub(cam.position);
+        const was = Math.atan2(-gv.x, -gv.z);
+        const turn = THREE.MathUtils.radToDeg(Math.abs(Math.atan2(Math.sin(was - yaw), Math.cos(was - yaw))));
+        const off = Math.abs(Math.hypot(gv.x, gv.z) - d);
+        if (placedKnowingNorth.get(n.station.id) && turn < limits.turn && off < limits.metres) continue;
+        drop(had);
+        codes = codes.filter((c) => c !== had);
+      }
+      // No compass yet: somewhere ahead, so it's found by looking around (it moves once north is known)
+      const rise = -0.4 + Math.random() * 0.8;
+      codes.push(makeSpot(n.station, yaw ?? heading() + deg((Math.random() - 0.5) * 50), d, rise, xr ? XR_DIST : DIST));
+      placedKnowingNorth.set(n.station.id, yaw !== null);
+    }
+    aimFor = 0;
+  };
+
+  const place = () => (gpsMode ? placeGps(true) : placeRandom());
 
   // ---- Looking around: motion sensors (permission is asked by the Scan tap), or drag
   let sensors = false;
   const sensorQ = new THREE.Quaternion();
   const zee = new THREE.Vector3(0, 0, 1);
   const qBack = new THREE.Quaternion(-Math.SQRT1_2, 0, 0, Math.SQRT1_2); // the camera looks out the back of the phone
-  const qScreen = new THREE.Quaternion();
   const oe = new THREE.Euler();
   const onOrient = (e: DeviceOrientationEvent) => {
     if (e.alpha == null || e.beta == null || e.gamma == null) return;
-    oe.set(deg(e.beta), deg(e.alpha), -deg(e.gamma), "YXZ");
-    sensorQ.setFromEuler(oe).multiply(qBack).multiply(qScreen.setFromAxisAngle(zee, -deg(screen.orientation?.angle ?? 0)));
+    orientQ(e.alpha, e.beta, e.gamma, sensorQ);
     if (!sensors) {
       sensors = true;
       cam.quaternion.copy(sensorQ);
       if (!active) place(); // re-place around the phone's real heading
     }
+    // iPhone: its compass comes with each reading (-1 while it's not calibrated). (No WebXR there.)
+    const compass = (e as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading;
+    if (gpsMode && !xr && typeof compass === "number" && compass >= 0)
+      noteNorth(yawOf(orientQ(360 - compass, e.beta, e.gamma, absQ)), yawOf(sensorQ));
   };
   addEventListener("deviceorientation", onOrient);
+  // Android: the same angles, measured from north
+  const onAbsolute = (e: DeviceOrientationEvent) => {
+    if (!gpsMode || e.alpha == null || e.beta == null || e.gamma == null) return;
+    const frame = xr ? yawOf(cam.quaternion) : sensors ? yawOf(sensorQ) : null;
+    noteNorth(yawOf(orientQ(e.alpha, e.beta, e.gamma, absQ)), frame);
+  };
+  addEventListener("deviceorientationabsolute", onAbsolute);
   const look = { yaw: 0, pitch: -0.08 };
 
   // ---- Camera feed
@@ -555,6 +698,13 @@ export async function createArStage(
       renderer.xr.updateCamera(cam);
       if (needPlace) {
         needPlace = false;
+        // North, carried over into WebXR's own frame: the phone faces the same way in both just now
+        const at = yawOf(cam.quaternion);
+        if (xrNorth && at !== null) northYaw = xrNorth.north + (at - xrNorth.facing);
+        else {
+          northYaw = null;
+          northN = 0;
+        }
         place(); // around where the phone is when tracking starts
       }
     } else if (sensors) cam.quaternion.slerp(sensorQ, 1 - Math.pow(1e-5, dt));
@@ -679,14 +829,30 @@ export async function createArStage(
       glow.intensity = Math.max(0, glow.intensity - dt * 10);
     }
 
+    // The camera's compass heading, for the scanner's arrow to a code (a few times a second)
+    if (gpsMode && now - compassAt > 0.15) {
+      compassAt = now;
+      const facing = (sensors || xr) && knowNorth() ? yawOf(cam.quaternion) : null;
+      const h = facing === null ? null : ((THREE.MathUtils.radToDeg(northYaw! - facing) % 360) + 360) % 360;
+      const moved = h === null || lastCompass === null ? h !== lastCompass : Math.abs(((h - lastCompass + 540) % 360) - 180) > 1;
+      if (moved) {
+        lastCompass = h;
+        ev.onCompass?.(h);
+      }
+    }
+
     dust.rotation.y += dt * 0.015;
     renderer.render(scene, cam);
   };
+  let compassAt = -1;
+  let lastCompass: number | null = null;
 
   // ---- WebXR: full movement tracking where the phone supports it
   let session: XRSession | null = null;
   let needPlace = false;
   let tried = false;
+  // North in the motion sensors' frame, and which way the phone faced in it, as WebXR starts
+  let xrNorth: { north: number; facing: number } | null = null;
   const startXr = async () => {
     if (session || disposed || !navigator.xr) return;
     const first = !tried;
@@ -705,6 +871,8 @@ export async function createArStage(
     }
     if (disposed) return void s.end().catch(() => {});
     session = s;
+    const facing = sensors ? yawOf(sensorQ) : null;
+    xrNorth = knowNorth() && facing !== null ? { north: northYaw!, facing } : null;
     stopCamera(); // the AR session drives the camera itself
     renderer.xr.enabled = true;
     renderer.xr.setReferenceSpaceType("local");
@@ -738,9 +906,13 @@ export async function createArStage(
   return {
     setTarget: (station) => {
       wanted = station;
-      if (!station || hidden.includes(station)) return;
+      if (gpsMode || !station || hidden.includes(station)) return; // GPS: every code is where it is already
       hidden = [station, ...hidden];
       if (phase === "searching" && !active) place();
+    },
+    setNearby: (near) => {
+      nearby = near;
+      if (gpsMode && phase === "searching") placeGps();
     },
     startXr: () => {
       if (xr) return;
@@ -756,6 +928,7 @@ export async function createArStage(
       renderer.setAnimationLoop(null);
       ro.disconnect();
       removeEventListener("deviceorientation", onOrient);
+      removeEventListener("deviceorientationabsolute", onAbsolute);
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       removeEventListener("pointerup", onUp);

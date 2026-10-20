@@ -9,6 +9,7 @@
  * the VenueMap's 360×520 plan units (x right, y down).
  */
 
+import { toLatLng } from "./geo";
 import { EVENT_END, EVENT_START, TEST_MODE } from "./site";
 import { firstSponsor } from "./sponsors";
 
@@ -47,9 +48,17 @@ export type Station = {
   /** Position on the venue map. */
   x: number;
   y: number;
+  /** Where it is on the ground (its GPS spot, set in the admin; else its map pin's place). */
+  lat: number;
+  lng: number;
+  /** It shows in the scanner once the player is within this many metres of its spot. */
+  radius: number;
 };
 
-const BUILT_IN_STATIONS: Omit<Station, "points" | "task" | "sponsor">[] = [
+/** A code's distance (m) until the organisers set one. */
+export const RADIUS = 10;
+
+const BUILT_IN_STATIONS: Omit<Station, "points" | "task" | "sponsor" | "lat" | "lng" | "radius">[] = [
   {
     id: "px01",
     code: "I8AR-01-M2VD",
@@ -195,16 +204,34 @@ export type Settings = {
   testMode: boolean;
   /** Where winners show their prize card ("the INNEV8 help desk"). */
   claimPlace: string;
+  /**
+   * On: the scanner hides codes at random spots around the player, wherever they are (for trying it
+   * away from the venue). Off: each code is at its GPS spot and shows within its distance.
+   */
+  randomSpots: boolean;
 };
 
 /** The hunt as the game plays it: the codes that are on, sorted by number. */
 export type Hunt = { stations: Station[]; zones: Zone[]; prizes: Prize[]; settings: Settings };
 
 export const BUILT_IN: Hunt = {
-  stations: BUILT_IN_STATIONS.map((s) => ({ ...s, points: POINTS[s.rarity], task: "none" as const, sponsor: firstSponsor(s.num) })),
+  stations: BUILT_IN_STATIONS.map((s) => ({
+    ...s,
+    points: POINTS[s.rarity],
+    task: "none" as const,
+    sponsor: firstSponsor(s.num),
+    ...toLatLng(s.x, s.y),
+    radius: RADIUS,
+  })),
   zones: BUILT_IN_ZONES,
   prizes: [],
-  settings: { start: EVENT_START.getTime(), end: EVENT_END.getTime(), testMode: TEST_MODE, claimPlace: "INNEV8 help desk" },
+  settings: {
+    start: EVENT_START.getTime(),
+    end: EVENT_END.getTime(),
+    testMode: TEST_MODE,
+    claimPlace: "INNEV8 help desk",
+    randomSpots: false,
+  },
 };
 
 export const zoneName = (hunt: Hunt, id: string) => hunt.zones.find((z) => z.id === id)?.name ?? id;

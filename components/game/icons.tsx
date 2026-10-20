@@ -93,6 +93,17 @@ export function MinusIcon() {
   );
 }
 
+/** "Where am I": a GPS crosshair. */
+export function LocateIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="6.5" />
+      <circle cx="12" cy="12" r="2" />
+      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
+    </svg>
+  );
+}
+
 export function FitIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">

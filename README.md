@@ -47,7 +47,7 @@ Test mode is the switch on the admin's Event page.
 | --- | --- | --- |
 | Before Nov 20, 8:00 AM | Hunt is playable. "The countdown is on." sits on the side: HUD timer chip and the Me tab | "The countdown is on." fills the screen; the hunt is locked |
 | From Nov 20, 8:00 AM | Hunt | Hunt (unlocks automatically) |
-| Scanner | Radar and arrows point to the hidden codes | No radar: find them by their clues |
+| Scanner | Radar and arrows point to the hidden codes; chips show the tracking and the GPS accuracy | No radar: find them by their clues and the distance meter |
 
 ## Deploy
 
@@ -59,7 +59,9 @@ from it.
 ## How a catch works
 
 1. Tapping **Scan** opens the AR view (`components/game/ScanView.tsx`, 3D layer in `components/game/ar/`,
-   built with [three.js](https://threejs.org)) and hides up to 3 of the player's unfound codes around them.
+   built with [three.js](https://threejs.org)). Each code still to find shows once the player is within
+   its distance of its spot (see "Where the codes are" below); with random spots, up to 3 are hidden
+   around them.
 2. **Android (Chrome on ARCore phones):** the scanner starts a WebXR AR session, which tracks the
    phone's movement. Codes are ~60 cm panels 2 to 5 m away, fixed in the room: back away and they
    shrink, walk up and they grow. If the browser needs a fresh tap to start AR, a **Start full AR** button
@@ -83,9 +85,39 @@ from it.
    and stays put as you move. Tapping it collects it and the catch card opens. Without a camera
    (walking can't be read) every code is near. Progress is saved on the device (localStorage).
 
-**Placement is a test stand-in:** codes go at random spots around the player each time the scanner
-opens. Pinning each code to its real spot at the venue (e.g. image anchors on existing banners and
-signs, or GPS for outdoor spots) is still to be decided.
+## Where the codes are (GPS)
+
+Each code has a real spot on the ground: its GPS spot, set in the admin (best on site, from an
+organiser's phone), or else where its pin is on the venue map (traced from OpenStreetMap, so it has
+coordinates; `lib/geo.ts`). The scanner shows a code only once the player is within its distance of
+that spot: 10 m unless the organisers set more (indoors, where GPS is rougher).
+
+- **Where the player is:** `lib/location.ts` follows the phone's GPS while the scanner (or the map's
+  "you are here") is open, and smooths it: each reading counts by how sure the phone is, the estimate
+  allows for walking pace, a bad reading (worse than 60 m) is skipped, and a sure jump of more than
+  25 m starts again from there (back in the app after a walk). A code comes in range at its
+  distance and stays in until a little past it (5 m, or half its distance), so it doesn't flicker.
+- **The distance meter** at the top of the scanner: the code headed for (the one chosen in the strip,
+  or Find it; else the nearest), how far, and a bar that fills as you get close. Once the compass is
+  known an arrow points to it. In range it says **Here!** and the phone buzzes; Qufoo speaks up. The
+  strip shows every code's distance.
+- **North:** the 3D view turns with the motion sensors, which don't know north. The compass gives it:
+  Android's `deviceorientationabsolute`, iPhone's `webkitCompassHeading` (after the motion permission
+  asked at Scan), compared with the view's own heading and smoothed (`ar/stage.ts`). With WebXR, north
+  carries over into the AR session's frame as it starts.
+- **Placing a code in range:** in its direction from the player (somewhere ahead until north is
+  known, then moved), at about its GPS distance kept to what the view can show (3–9 m; 2–8 m with
+  WebXR), and then it stays put. It's moved only if the GPS and the view disagree a lot about where it
+  is while it's off screen. Phone GPS is good to a few metres, so up close a code is where the player
+  is looking around, not to the metre: the meter shows a pulse, not an arrow, once in range.
+- **The map:** the player's dot with a ring for how sure the GPS is (on by itself once the site is
+  allowed the location; the button by the zoom), each code's range ring when selected, and its
+  distance on its card.
+
+**Random spots** (the admin's Event page) is for trying the scanner away from the venue: a few codes
+go at random spots around the player each time the scanner opens, as before. In test mode, if the
+phone can't give its location, the scanner offers it too. The location, like the camera, only works on
+a secure page.
 
 The camera only works on a secure page: `https://…` or `http://localhost`. Over plain
 `http://192.168.x.x` the scanner shows a virtual room instead (drag to look). iPhone asks for motion
@@ -195,4 +227,6 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
 | `components/game/VenueMap.tsx` | 3D holographic venue map |
 | `lib/store.ts` | Saved progress |
 | `lib/site.ts` | The dates and test mode the game starts with (the admin's replace them) |
+| `lib/geo.ts` | The venue plan ↔ latitude/longitude (the admin's `lib/venue.ts` has the same numbers), distance and direction |
+| `lib/location.ts` | The player's GPS, smoothed and shared by the scanner and the map |
 | `app/globals.css`, `app/game.css` | Styles |

@@ -1,7 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { BUILT_IN, RARITIES, TASKS, type Hunt, type Prize, type PrizeRule, type Station, type Task, type Zone } from "./hunt";
+import { toLatLng } from "./geo";
+import { BUILT_IN, RADIUS, RARITIES, TASKS, type Hunt, type Prize, type PrizeRule, type Station, type Task, type Zone } from "./hunt";
 import { firstSponsor } from "./sponsors";
 
 /**
@@ -140,7 +141,10 @@ function parseStation(v: unknown): Station | null {
   if (!num(s.x) || !num(s.y)) return null;
   const task: Task = TASKS.includes(s.task as Task) ? (s.task as Task) : "none"; // copies saved before tasks: none
   const sponsor = str(s.sponsor) ? s.sponsor : firstSponsor(s.num); // and before sponsors: each code's first
-  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, task, sponsor, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y };
+  // and before GPS spots: where its map pin is, at the usual distance
+  const spot = num(s.lat) && num(s.lng) ? { lat: s.lat, lng: s.lng } : toLatLng(s.x, s.y);
+  const radius = num(s.radius) && s.radius > 0 ? s.radius : RADIUS;
+  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, task, sponsor, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y, ...spot, radius };
 }
 function parseZone(v: unknown): Zone | null {
   const z = v as Partial<Zone> | null;
@@ -172,6 +176,6 @@ function parseHunt(v: unknown): Hunt | null {
       .sort((a, b) => a.num - b.num),
     zones: h.zones.map(parseZone).filter(isSome),
     prizes: h.prizes.map(parsePrize).filter(isSome),
-    settings: { start: s.start, end: s.end, testMode: s.testMode, claimPlace: s.claimPlace },
+    settings: { start: s.start, end: s.end, testMode: s.testMode, claimPlace: s.claimPlace, randomSpots: s.randomSpots === true },
   };
 }
