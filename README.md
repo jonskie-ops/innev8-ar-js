@@ -164,13 +164,16 @@ opens the scanner.
   Phones block sound until the page is tapped, so his hello after the splash waits with "Tap to
   hear Qufoo" and that tap starts it. The first tap also readies the one audio element he speaks
   through, so the scanner's lines (which come on their own) can play later.
-- **Sponsors:** every QR code carries a sponsor's logo in a circle on its top-right corner (the
-  tiles everywhere, and the 3D code in the camera). The logos go in `QR Sponsor/` (not
-  committed); `node scripts/sponsors.mjs` takes out their plain backgrounds, sets each on a white
-  circle as round badges in `public/assets/sponsors/`, and writes `lib/sponsors.json`. Copy the
-  badges to the admin's `public/sponsors/` (and add new sponsors to its `SPONSORS`), where the
-  organisers choose each code's sponsor; until they have (an admin without the sponsors update),
-  code #n gets the nth sponsor.
+- **Sponsors:** every QR code can carry a sponsor's logo in a circle on its top-right corner (the
+  tiles everywhere, and the 3D code in the camera). The organisers keep the sponsors on the admin's
+  Sponsors page (name and logo; the admin makes the round badge) and choose each code's; they come
+  with the hunt (`sponsors` in `/api/hunt`). An uploaded badge is served at the game's own address,
+  `/assets/sponsors/up/<file>` (`app/assets/sponsors/up/[file]/route.ts`, from the admin's
+  "sponsors" storage bucket), so the phone keeps it with the other pictures and the 3D code can
+  draw it. The first 8 sponsors' badges came with the game: `node scripts/sponsors.mjs` made them
+  from the logos in `QR Sponsor/` (not committed) into `public/assets/sponsors/` and
+  `lib/sponsors.json`, and they're used until the admin has its sponsor logos update (and for
+  those still on their first badge); before the admin's sponsors update, code #n gets the nth.
 
 ## The app (PWA)
 
@@ -211,7 +214,8 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
 | `components/Splash.tsx`, `Emblem.tsx` | INNEV8 splash screen |
 | `components/Mascot.tsx`, `scripts/mascot.mjs` | The talking mascot after the splash; the script that builds its sprite |
 | `lib/voice.ts`, `lib/voice-clips.json`, `scripts/voice.mjs` | Qufoo's voice clips and the script that adds them |
-| `lib/sponsors.ts`, `lib/sponsors.json`, `scripts/sponsors.mjs` | The QR codes' sponsors and the script that makes their badges |
+| `lib/sponsors.ts`, `lib/sponsors.json`, `scripts/sponsors.mjs` | The QR codes' sponsors (the organisers', or the 8 the game came with) and the script that made the first badges |
+| `app/assets/sponsors/up/[file]/route.ts` | A sponsor badge uploaded in the admin, at the game's own address |
 | `app/manifest.ts`, `public/sw.js`, `lib/pwa.ts`, `components/GetApp.tsx`, `components/AppUpdate.tsx`, `scripts/app-icons.mjs` | The installable app: manifest, offline service worker, install guide, update banner, icons |
 | `components/CountdownSection.tsx`, `Countdown.tsx` | "The countdown is on." section and clock |
 | `components/game/Game.tsx` | Game shell: HUD, tabs, overlays |

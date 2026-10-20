@@ -11,7 +11,7 @@
 
 import { toLatLng } from "./geo";
 import { EVENT_END, EVENT_START, TEST_MODE } from "./site";
-import { firstSponsor } from "./sponsors";
+import { firstSponsor, type Sponsor } from "./sponsors";
 
 export type Rarity = "common" | "rare" | "legendary";
 
@@ -211,8 +211,11 @@ export type Settings = {
   randomSpots: boolean;
 };
 
-/** The hunt as the game plays it: the codes that are on, sorted by number. */
-export type Hunt = { stations: Station[]; zones: Zone[]; prizes: Prize[]; settings: Settings };
+/**
+ * The hunt as the game plays it: the codes that are on, sorted by number. `sponsors`: the
+ * organisers' (their names and badges), or null for the ones that came with the game.
+ */
+export type Hunt = { stations: Station[]; zones: Zone[]; prizes: Prize[]; sponsors: Sponsor[] | null; settings: Settings };
 
 export const BUILT_IN: Hunt = {
   stations: BUILT_IN_STATIONS.map((s) => ({
@@ -225,6 +228,7 @@ export const BUILT_IN: Hunt = {
   })),
   zones: BUILT_IN_ZONES,
   prizes: [],
+  sponsors: null,
   settings: {
     start: EVENT_START.getTime(),
     end: EVENT_END.getTime(),

@@ -1,7 +1,8 @@
 /* eslint-disable @next/next/no-img-element -- a small, fixed-size badge that's kept on the phone */
 import type { CSSProperties } from "react";
 import type { Station } from "@/lib/hunt";
-import { sponsorOf } from "@/lib/sponsors";
+import { useHunt } from "@/lib/huntStore";
+import { sponsorIn } from "@/lib/sponsors";
 import { CheckIcon } from "./icons";
 import { QrGlyph } from "./QrGlyph";
 
@@ -24,7 +25,7 @@ export function QrTile({
   /** Staggers the float so a grid of tiles doesn't bob in unison. */
   i?: number;
 }) {
-  const sponsor = sponsorOf(station.sponsor);
+  const sponsor = sponsorIn(useHunt().hunt.sponsors, station.sponsor);
   return (
     <span
       className={`qrt qrt--${station.rarity} qrt--${size} is-${state}${sponsor ? " has-sponsor" : ""}`}

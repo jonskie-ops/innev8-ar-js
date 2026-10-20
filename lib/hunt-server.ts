@@ -1,7 +1,7 @@
 import { cacheLife } from "next/cache";
 import { toLatLng } from "./geo";
 import { RADIUS, TASKS, type Hunt, type Prize, type PrizeRule, type Rarity, type Station, type Task, type Zone } from "./hunt";
-import { firstSponsor } from "./sponsors";
+import { builtInBadge, firstSponsor, type Sponsor } from "./sponsors";
 
 /** A number from a database row (Postgres numbers can arrive as strings), or null. */
 const n = (v: unknown) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
@@ -31,13 +31,18 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
       if (!res.ok) throw new Error(`${path}: ${res.status}`);
       return res.json();
     };
-    const [codes, zones, prizes, settings] = await Promise.all([
+    const [codes, zones, prizes, settings, sponsors] = await Promise.all([
       // Every column: a database without the networking, sponsors or GPS update yet simply has no task,
       // sponsor or GPS spot (nor random spots, in the settings)
       get<CodeRow>("codes?select=*&live=eq.true&order=num"),
       get<ZoneRow>("zones?select=id,name,label_x,label_y&order=sort,name"),
       get<PrizeRow>("prizes?select=id,name,description,photo_path,rule,rule_value&live=eq.true&order=sort,created_at"),
       get<SettingsRow>("settings?select=*&limit=1"),
+      // The organisers' sponsors: null before the sponsor logos update (no such table: the game's own then)
+      get<SponsorRow>("sponsors?select=id,name,badge_path").catch((e: Error) => {
+        if (/: 404$/.test(e.message)) return null;
+        throw e;
+      }),
     ]);
     const s = settings[0];
     if (!s) throw new Error("no settings");
@@ -87,6 +92,15 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             value: p.rule_value,
           }),
         ),
+        sponsors: sponsors
+          ?.map((r): Sponsor | null => {
+            // Their badge, through the game's own address (kept on the phone like its other pictures);
+            // still none of their own: the one that came with the game
+            const badge = r.badge_path ? `/assets/sponsors/up/${encodeURIComponent(r.badge_path)}` : builtInBadge(r.id);
+            return badge ? { id: r.id, name: r.name, badge } : null;
+          })
+          .filter((x) => x !== null)
+          .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" })) ?? null,
         settings: {
           start: new Date(s.starts_at).getTime(),
           end: new Date(s.ends_at).getTime(),
@@ -130,4 +144,5 @@ type PrizeRow = {
   rule: PrizeRule;
   rule_value: number | null;
 };
+type SponsorRow = { id: string; name: string; badge_path: string | null };
 type SettingsRow = { starts_at: string; ends_at: string; test_mode: boolean; claim_place: string; random_spots?: boolean };

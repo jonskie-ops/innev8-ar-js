@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { getHunt } from "./huntStore";
 import sponsors from "./sponsors.json";
 import clips from "./voice-clips.json";
 
@@ -65,7 +66,9 @@ export function startApp() {
       for (const ms of WARM_MS)
         window.setTimeout(() => {
           const used = performance.getEntriesByType("resource").map((r) => r.name);
-          reg.active?.postMessage({ type: "warm", urls: [...ASSETS, ...used] });
+          // (and the organisers' sponsor badges, wherever they show)
+          const badges = getHunt().hunt.sponsors?.map((s) => s.badge) ?? [];
+          reg.active?.postMessage({ type: "warm", urls: [...ASSETS, ...badges, ...used] });
         }, ms);
     })
     .catch(() => {}); // no worker: it's a website as before

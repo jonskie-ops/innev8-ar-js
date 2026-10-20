@@ -15,17 +15,26 @@ const NAMES: Record<string, string> = {
   symphonics: "Symphonics",
 };
 
-/** Every sponsor with a logo (added with scripts/sponsors.mjs), in order of their id. */
-export const SPONSORS: Sponsor[] = Object.entries(badges as Record<string, string>).map(([id, badge]) => ({
+/**
+ * The sponsors that came with the game (added with scripts/sponsors.mjs), in order of their id:
+ * until the organisers keep their own on the admin's Sponsors page (the hunt's `sponsors`).
+ */
+export const BUILT_IN_SPONSORS: Sponsor[] = Object.entries(badges as Record<string, string>).map(([id, badge]) => ({
   id,
   name: NAMES[id] ?? id.replace(/(^|-)([a-z])/g, (_, s: string, c: string) => (s ? " " : "") + c.toUpperCase()),
   badge,
 }));
 
-export const sponsorOf = (id: string | undefined): Sponsor | null => SPONSORS.find((s) => s.id === id) ?? null;
+/** A built-in sponsor's badge, for the organisers' sponsors still on theirs. */
+export const builtInBadge = (id: string) => (badges as Record<string, string>)[id] ?? null;
+
+/** A code's sponsor among the hunt's (null: the ones that came with the game), or null (none). */
+export const sponsorIn = (sponsors: Sponsor[] | null, id: string | undefined): Sponsor | null =>
+  (sponsors ?? BUILT_IN_SPONSORS).find((s) => s.id === id) ?? null;
 
 /**
  * Code #n's sponsor until the organisers choose one (an admin without sponsors yet): the nth, in
  * the same order the admin's database update starts them in.
  */
-export const firstSponsor = (num: number) => (SPONSORS.length ? SPONSORS[(num - 1) % SPONSORS.length].id : "none");
+export const firstSponsor = (num: number) =>
+  BUILT_IN_SPONSORS.length ? BUILT_IN_SPONSORS[(num - 1) % BUILT_IN_SPONSORS.length].id : "none";

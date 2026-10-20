@@ -1,7 +1,8 @@
 import QRCode from "qrcode";
 import * as THREE from "three";
 import type { Rarity, Station } from "@/lib/hunt";
-import { sponsorOf } from "@/lib/sponsors";
+import { getHunt } from "@/lib/huntStore";
+import { sponsorIn } from "@/lib/sponsors";
 
 export const RARITY_HEX: Record<Rarity, number> = { common: 0x12bfea, rare: 0x20c9bc, legendary: 0xd6b56d };
 
@@ -122,7 +123,7 @@ export function buildQr3d(station: Station): Qr3d {
 
   // The sponsor's logo in a circle on the top-right corner, like a sticker, ringed in the rarity
   // colour. A plain white disc until the logo has loaded.
-  const sponsor = sponsorOf(station.sponsor);
+  const sponsor = sponsorIn(getHunt().hunt.sponsors, station.sponsor);
   let badge: THREE.Group | null = null;
   if (sponsor) {
     const R = 0.17;

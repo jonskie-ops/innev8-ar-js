@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { toLatLng } from "./geo";
 import { BUILT_IN, RADIUS, RARITIES, TASKS, type Hunt, type Prize, type PrizeRule, type Station, type Task, type Zone } from "./hunt";
-import { firstSponsor } from "./sponsors";
+import { firstSponsor, type Sponsor } from "./sponsors";
 
 /**
  * The hunt on this phone: the latest copy of what the organisers set (from /api/hunt), saved so the
@@ -164,6 +164,11 @@ function parsePrize(v: unknown): Prize | null {
     value: num(p.value) ? p.value : null,
   };
 }
+function parseSponsor(v: unknown): Sponsor | null {
+  const s = v as Partial<Sponsor> | null;
+  if (!s || !str(s.id) || !str(s.name) || !str(s.badge) || !s.badge.startsWith("/assets/sponsors/")) return null;
+  return { id: s.id, name: s.name, badge: s.badge };
+}
 function parseHunt(v: unknown): Hunt | null {
   const h = v as Partial<Record<keyof Hunt, unknown>> | null;
   const s = h?.settings as Partial<Hunt["settings"]> | undefined;
@@ -176,6 +181,8 @@ function parseHunt(v: unknown): Hunt | null {
       .sort((a, b) => a.num - b.num),
     zones: h.zones.map(parseZone).filter(isSome),
     prizes: h.prizes.map(parsePrize).filter(isSome),
+    // (a copy from before the sponsor logos update, or saved before it: the game's own)
+    sponsors: Array.isArray(h.sponsors) ? h.sponsors.map(parseSponsor).filter(isSome) : null,
     settings: { start: s.start, end: s.end, testMode: s.testMode, claimPlace: s.claimPlace, randomSpots: s.randomSpots === true },
   };
 }
