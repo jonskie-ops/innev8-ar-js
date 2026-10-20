@@ -147,7 +147,7 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
 - **Installing:** `app/manifest.ts` (name, colours, icons) and, for iPhone, `appleWebApp` in
   `app/layout.tsx`. The icons in `public/assets/img/app/` come from the INNEV8 icon:
   `node scripts/app-icons.mjs` (the maskable ones fill the square for Android's icon shapes).
-  "Get the app" on the Me page and the countdown screen (`components/GetApp.tsx`) shows how, for
+  "Get the app" on the Me page (`components/GetApp.tsx`) shows how, for
   this phone: an Install button (Android, desktop Chrome), Share then Add to Home Screen (iPhone),
   or "open it in your browser first" (Messenger and other in-app browsers). Gone once installed.
   On iPhone the installed app keeps its own data, apart from Safari's, so the guide says to add

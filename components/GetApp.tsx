@@ -7,10 +7,9 @@ import { DownloadIcon, PhoneIcon, ShareIcon } from "./icons";
 /**
  * How to put the game on the home screen, for this phone: an Install button where the browser
  * offers one (Android, desktop Chrome), Share then Add to Home Screen on iPhone, or how to get out
- * of an in-app browser (Messenger…) first. Nothing once it's installed. `variant`: a section of the
- * Me page, or a card on the countdown screen.
+ * of an in-app browser (Messenger…) first. Nothing once it's installed. A section of the Me page.
  */
-export function GetApp({ variant }: { variant: "section" | "card" }) {
+export function GetApp() {
   const way = useInstallWay();
   if (!way || way === "installed") return null;
   const body = (
@@ -62,16 +61,6 @@ export function GetApp({ variant }: { variant: "section" | "card" }) {
       )}
     </div>
   );
-  if (variant === "card")
-    return (
-      <div className="getapp-card">
-        <p className="getapp-card__title">
-          <PhoneIcon />
-          Get the app
-        </p>
-        {body}
-      </div>
-    );
   return (
     <section className="psec">
       <div className="psec__head">

@@ -291,7 +291,7 @@ export function MeView({
 
         <HunterSection name={name} province={province} />
 
-        <GetApp variant="section" />
+        <GetApp />
 
         {phase === "before" && (
           <section className="psec">

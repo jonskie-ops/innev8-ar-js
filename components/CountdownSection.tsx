@@ -4,7 +4,6 @@
 import { useHunt } from "@/lib/huntStore";
 import { GOOGLE_CALENDAR_URL, ICS_URL } from "@/lib/site";
 import { CountdownClock } from "./Countdown";
-import { GetApp } from "./GetApp";
 import { CalendarAddIcon, DownloadIcon } from "./icons";
 
 const TZ = "Asia/Manila";
@@ -55,7 +54,6 @@ export function CountdownSection() {
           </div>
           <p className="save__note">Registration opens soon.</p>
         </div>
-        <GetApp variant="card" />
       </div>
     </section>
   );

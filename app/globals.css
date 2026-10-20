@@ -485,7 +485,7 @@ p {
   }
 }
 
-/* Get the app: how to add the game to the home screen (Me page, countdown screen) */
+/* Get the app: how to add the game to the home screen (Me page) */
 .getapp {
   display: grid;
   justify-items: start;
@@ -524,8 +524,7 @@ p {
   line-height: 1.5;
   color: var(--faint);
 }
-.getapp svg,
-.getapp-card__title svg {
+.getapp svg {
   width: 16px;
   height: 16px;
   fill: none;
@@ -533,28 +532,6 @@ p {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-.getapp-card {
-  width: min(440px, 100%);
-  margin: 18px auto 0;
-  padding: 20px 22px;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  background: rgba(var(--shade-rgb), 0.55);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  text-align: left;
-}
-.getapp-card__title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
-  font: 700 14px/1.2 var(--font-h);
-  color: var(--text);
-}
-.getapp-card__title svg {
-  color: var(--cyan);
 }
 
 /* "A new version is ready": at the top, over everything but the splash */
