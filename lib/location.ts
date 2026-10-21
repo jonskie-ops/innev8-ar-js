@@ -37,11 +37,20 @@ const POOR = 60;
  * really is somewhere else (back in the app after a walk, say): start again from it rather than drift.
  */
 const JUMP = 25;
+/**
+ * No exact GPS fix after this long (ms; indoors, or the GPS just switched on, it can take a minute):
+ * also take the phone's quicker rough location (Wi-Fi, cell towers), so the player shows up at all.
+ * Its readings are usually worse than POOR, so a GPS fix takes over as soon as there is one.
+ */
+const ROUGH_AFTER_MS = 6000;
 
 let state: LocationState = { status: "off", fix: null };
 const listeners = new Set<() => void>();
 let users = 0;
 let watch: number | null = null;
+let rough: number | null = null;
+let roughTimer: number | undefined;
+let gotFix = false;
 let est: { lat: number; lng: number; v: number; at: number } | null = null;
 
 function set(next: LocationState) {
@@ -50,6 +59,7 @@ function set(next: LocationState) {
 }
 
 function take(p: GeolocationPosition) {
+  gotFix = true;
   const acc = Math.max(1, p.coords.accuracy || POOR);
   const at = p.timestamp || Date.now();
   if (acc > POOR && est && at - est.at < RESTART_MS) return; // a bad reading: keep the good estimate
@@ -72,6 +82,11 @@ function start() {
   if (!window.isSecureContext) return set({ status: "insecure", fix: null });
   if (!navigator.geolocation) return set({ status: "unavailable", fix: null });
   if (state.status !== "on") set({ ...state, status: "asking" });
+  gotFix = false;
+  roughTimer = window.setTimeout(() => {
+    if (gotFix || watch === null) return;
+    rough = navigator.geolocation.watchPosition(take, () => {}, { enableHighAccuracy: false, maximumAge: 10000, timeout: 30000 });
+  }, ROUGH_AFTER_MS);
   watch = navigator.geolocation.watchPosition(
     take,
     (e) => {
@@ -85,8 +100,11 @@ function start() {
 }
 
 function stop() {
+  window.clearTimeout(roughTimer);
   if (watch !== null) navigator.geolocation.clearWatch(watch);
+  if (rough !== null) navigator.geolocation.clearWatch(rough);
   watch = null;
+  rough = null;
 }
 
 /** Try again after a "blocked" or "no signal" (e.g. a Try again button, once they've allowed it). */
