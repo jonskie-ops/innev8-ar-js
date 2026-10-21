@@ -82,6 +82,8 @@ export type Place = {
   lng: number;
   width: number;
   outlines: { buildings: string; roads: string; grounds: string } | null;
+  /** On the plan drawn by hand for the summit (Leyte Academic Center, until its map is drawn from OpenStreetMap) */
+  hand: boolean;
 };
 
 export const LAC_PLACE: Place = {
@@ -92,15 +94,17 @@ export const LAC_PLACE: Place = {
   lng: 125.003127,
   width: 100,
   outlines: null,
+  hand: true,
 };
 
 /**
  * A place's map in plan units (360×520), as the admin draws it (INNEV8-AR-ADMIN, lib/venue.ts,
- * planOf: keep the two the same). Leyte Academic Center: the hand-drawn plan above. Any other: north
- * up, its middle at (180, 260), `width` metres across 300 units.
+ * planOf: keep the two the same). On the hand-drawn plan (Leyte Academic Center, until its map is
+ * drawn from OpenStreetMap): the plan above. Any other: north up, its middle at (180, 260), `width`
+ * metres across 300 units.
  */
-export function planOf(p: Pick<Place, "id" | "lat" | "lng" | "width">) {
-  if (p.id === DEFAULT_PLACE) return { hand: true, toPlan, toLatLng, perM: PER_M };
+export function planOf(p: Pick<Place, "lat" | "lng" | "width" | "hand">) {
+  if (p.hand) return { hand: true, toPlan, toLatLng, perM: PER_M };
   const k = 300 / p.width;
   const cos = Math.cos(p.lat * RAD);
   return {

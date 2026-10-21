@@ -117,7 +117,7 @@ that spot: 10 m unless the organisers set more (indoors, where GPS is rougher).
 **Locations:** the hunt can be played somewhere other than Leyte Academic Center. The organisers add
 locations on the admin's Locations page, and each code is at one; the hunt (`places` in `/api/hunt`)
 has every location that's on, and only their codes. Leyte Academic Center's map is drawn by hand
-(`lib/venue.ts`); any other's comes from OpenStreetMap's buildings, roads and grounds around it,
+(`lib/venue.ts`) until the admin draws it from OpenStreetMap (`hand` on its place); any other's comes from OpenStreetMap's buildings, roads and grounds around it,
 drawn by the admin into the same plan units (`planOf` in `lib/geo.ts`: north up, its middle at
 (180, 260), its width across 300 units) and shown in the same holographic style. With more than
 one location on, chips above the map switch between them; the map opens on the player's nearest

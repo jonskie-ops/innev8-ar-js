@@ -216,9 +216,8 @@ export function ScanView({
   if (failed) hint = "AR isn't available in this browser.";
   else if (phase === "searching" && gps && !fix) hint = LOCATION_HINT[loc.status === "on" ? "asking" : loc.status];
   else if (phase === "searching" && gps && !anyIn)
-    hint = aim
-      ? `Walk to QR code #${pad2(aim.s.num)}: ${howFar(aim.d)} away. It shows when you're within ${aim.s.radius} m.`
-      : "Walk around the venue: QR codes show when you're near them.";
+    // (walking to a code: its meter says how far, so nothing here covers the radar)
+    hint = aim ? null : "Walk around the venue: QR codes show when you're near them.";
   else if (phase === "searching") {
     const away = guide?.away;
     hint = away ? (
@@ -372,9 +371,11 @@ export function ScanView({
       )}
 
       {/* What's happening, just above the scan frame */}
-      <p className="scan__hint" aria-live="polite">
-        {hint}
-      </p>
+      {hint !== null && (
+        <p className="scan__hint" aria-live="polite">
+          {hint}
+        </p>
+      )}
 
       <div className="scan__bottom">
         {noLocation && (

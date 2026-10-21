@@ -64,7 +64,11 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
           const spot =
             lat !== null && lng !== null
               ? { lat, lng }
-              : planOf(place ? { id: place.id, lat: Number(place.lat), lng: Number(place.lng), width: Number(place.width) } : { id: DEFAULT_PLACE, lat: 0, lng: 0, width: 1 }).toLatLng(Number(c.x), Number(c.y));
+              : planOf(
+                  place
+                    ? { lat: Number(place.lat), lng: Number(place.lng), width: Number(place.width), hand: handDrawn(place) }
+                    : { lat: 0, lng: 0, width: 1, hand: true },
+                ).toLatLng(Number(c.x), Number(c.y));
           const radius = n(c.radius);
           return {
             id: c.id,
@@ -117,6 +121,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
                 p.outlines && typeof p.outlines.buildings === "string"
                   ? { buildings: p.outlines.buildings, roads: p.outlines.roads ?? "", grounds: p.outlines.grounds ?? "" }
                   : null,
+              hand: handDrawn(p),
             }),
           ) ?? null,
         sponsors: sponsors
@@ -172,6 +177,9 @@ type PrizeRow = {
   rule: PrizeRule;
   rule_value: number | null;
 };
+/** Leyte Academic Center still on its hand-drawn plan (its map not drawn from OpenStreetMap yet) */
+const handDrawn = (p: PlaceRow) => p.id === DEFAULT_PLACE && p.outlines === null;
+
 type PlaceRow = {
   id: string;
   name: string;

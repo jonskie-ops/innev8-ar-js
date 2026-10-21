@@ -170,7 +170,9 @@ function parsePlace(v: unknown): Place | null {
   if (!p || !str(p.id) || !str(p.name) || !num(p.lat) || !num(p.lng) || !num(p.width) || p.width <= 0) return null;
   const o = p.outlines;
   const outlines = o && str(o.buildings) && str(o.roads) && str(o.grounds) ? { buildings: o.buildings, roads: o.roads, grounds: o.grounds } : null;
-  return { id: p.id, name: p.name, address: str(p.address) ? p.address : "", lat: p.lat, lng: p.lng, width: p.width, outlines };
+  // (a copy saved before `hand`: Leyte Academic Center was always on its hand-drawn plan)
+  const hand = typeof p.hand === "boolean" ? p.hand : p.id === DEFAULT_PLACE;
+  return { id: p.id, name: p.name, address: str(p.address) ? p.address : "", lat: p.lat, lng: p.lng, width: p.width, outlines, hand };
 }
 function parseSponsor(v: unknown): Sponsor | null {
   const s = v as Partial<Sponsor> | null;
