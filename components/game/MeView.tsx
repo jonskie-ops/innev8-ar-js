@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { levelOf, standing } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
-import { forgetHunter, joinHunter, loadMeetings, savedHunter, savedMeetings, updateHunter, type Hunter, type Met } from "@/lib/hunter";
+import { forgetHunter, myHunter, savedHunter, savedMeetings, updateHunter, type Hunter, type Met } from "@/lib/hunter";
 import { PROVINCES } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
@@ -360,11 +360,10 @@ function HunterSection({ name, province }: { name: string; province: string }) {
   const [met, setMet] = useState<Met[]>(savedMeetings);
   useEffect(() => {
     let alive = true;
-    void joinHunter(name, province).then(async (h) => {
-      if (!alive || !h) return;
-      setMe(h);
-      const list = await loadMeetings(h);
-      if (alive) setMet(list);
+    void myHunter(name, province).then(({ hunter, met }) => {
+      if (!alive || !hunter) return;
+      setMe(hunter);
+      setMet(met);
     });
     return () => {
       alive = false;

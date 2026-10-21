@@ -117,6 +117,8 @@ export function MapView({
                 ? "Location needs the game's https address"
                 : loc.status === "unavailable"
                   ? "No GPS signal yet"
+                  : loc.status === "lost"
+                    ? "Your location turned off: turn it back on"
                   : "Finding you…"}
         </p>
       )}

@@ -21,8 +21,11 @@ export type Fix = {
 };
 
 export type LocationState = {
-  /** off: nobody's asked; asking: waiting for permission or a first fix */
-  status: "off" | "asking" | "on" | "denied" | "unavailable" | "insecure";
+  /**
+   * off: nobody's asked; asking: waiting for permission or a first fix; lost: it was on, then the
+   * phone stopped giving it (its location turned off): it comes back by itself once it's on again
+   */
+  status: "off" | "asking" | "on" | "denied" | "unavailable" | "insecure" | "lost";
   fix: Fix | null;
 };
 
@@ -43,6 +46,16 @@ const JUMP = 25;
  * Its readings are usually worse than POOR, so a GPS fix takes over as soon as there is one.
  */
 const ROUGH_AFTER_MS = 6000;
+/**
+ * The phone saying it has no location, this long (ms) after its last reading: its location was turned
+ * off (a moment's "no location" in between readings is left alone). No reading at all for LOST_MS, and
+ * it's lost too.
+ */
+const GONE_MS = 3000;
+const LOST_MS = 30000;
+/** While it's lost, how often (ms) to ask the phone again (with no signal yet: every few of these). */
+const RETRY_MS = 4000;
+const SLOW_RETRIES = 4;
 
 let state: LocationState = { status: "off", fix: null };
 const listeners = new Set<() => void>();
@@ -51,6 +64,11 @@ let watch: number | null = null;
 let rough: number | null = null;
 let roughTimer: number | undefined;
 let gotFix = false;
+let lastAt = 0; // when the last reading came, or the game came back on screen (this clock)
+let lostAt = 0;
+let revive: number | undefined;
+let ticks = 0;
+let hooked = false;
 let est: { lat: number; lng: number; v: number; at: number } | null = null;
 
 function set(next: LocationState) {
@@ -59,7 +77,9 @@ function set(next: LocationState) {
 }
 
 function take(p: GeolocationPosition) {
+  if (state.status === "lost" && p.timestamp && p.timestamp < lostAt) return; // (one the phone kept from before)
   gotFix = true;
+  lastAt = Date.now();
   const acc = Math.max(1, p.coords.accuracy || POOR);
   const at = p.timestamp || Date.now();
   if (acc > POOR && est && at - est.at < RESTART_MS) return; // a bad reading: keep the good estimate
@@ -77,11 +97,56 @@ function take(p: GeolocationPosition) {
   set({ status: "on", fix: { lat: est.lat, lng: est.lng, accuracy: Math.round(acc), at } });
 }
 
+/** Its location went off: the warning shows, and the phone is asked again every few seconds. */
+function lose() {
+  if (state.status === "lost") return;
+  lostAt = Date.now();
+  set({ status: "lost", fix: null });
+}
+
+/**
+ * Once: the site's location permission changing (blocked in the browser's settings, or allowed again),
+ * and the player coming back to the game (from the phone's settings, say) with no location: ask again.
+ */
+function hook() {
+  if (hooked) return;
+  hooked = true;
+  navigator.permissions
+    ?.query({ name: "geolocation" })
+    .then((perm) => {
+      perm.onchange = () => {
+        if (perm.state === "denied") {
+          stop();
+          set({ status: "denied", fix: null });
+        } else if (users > 0 && state.status !== "on") restart();
+      };
+    })
+    .catch(() => {});
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    lastAt = Date.now(); // (its readings were paused while away)
+    if (users > 0 && state.status !== "on" && state.status !== "insecure") restart();
+  });
+}
+
+function restart() {
+  stop();
+  start();
+}
+
 function start() {
   if (watch !== null) return;
   if (!window.isSecureContext) return set({ status: "insecure", fix: null });
   if (!navigator.geolocation) return set({ status: "unavailable", fix: null });
-  if (state.status !== "on") set({ ...state, status: "asking" });
+  hook();
+  if (state.status !== "on" && state.status !== "lost") set({ ...state, status: "asking" });
+  window.clearInterval(revive);
+  revive = window.setInterval(() => {
+    if (users === 0 || document.visibilityState !== "visible") return; // (a phone pauses it for a tab in the background)
+    if (state.status === "on" && Date.now() - lastAt > LOST_MS) lose();
+    // (no signal yet: not so often, the GPS may still be warming up)
+    if (state.status === "lost" || (state.status === "unavailable" && ++ticks % SLOW_RETRIES === 0)) restart();
+  }, RETRY_MS);
   gotFix = false;
   roughTimer = window.setTimeout(() => {
     if (gotFix || watch === null) return;
@@ -91,9 +156,15 @@ function start() {
     take,
     (e) => {
       if (e.code === e.PERMISSION_DENIED) {
+        if (state.fix || state.status === "lost") return lose(); // (some phones say this when their location's switched off)
         stop();
         set({ status: "denied", fix: null });
-      } else if (!state.fix) set({ status: "unavailable", fix: null }); // keeps trying; a later fix turns it on
+      } else if (state.status === "lost") return;
+      else if (state.fix) {
+        // Had one: gone now if the phone says so a few seconds on (or nothing's come for a while)
+        const quiet = Date.now() - lastAt;
+        if ((e.code === e.POSITION_UNAVAILABLE && quiet > GONE_MS) || quiet > LOST_MS) lose();
+      } else set({ status: "unavailable", fix: null }); // keeps trying; a later fix turns it on
     },
     { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 },
   );
@@ -132,7 +203,9 @@ export function useLocation(on: boolean): LocationState {
     start();
     return () => {
       users--;
-      if (users === 0) stop(); // keeps the last fix for a moment's reopen; a gap of 30 s+ starts over
+      if (users > 0) return;
+      stop(); // keeps the last fix for a moment's reopen; a gap of 30 s+ starts over
+      window.clearInterval(revive);
     };
   }, [on]);
   return useSyncExternalStore(

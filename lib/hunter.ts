@@ -72,6 +72,14 @@ export function forgetHunter() {
   } catch {}
 }
 
+/**
+ * The database doesn't know this phone's hunter ID (the organisers deleted it): forget it, so the
+ * game makes a new one the next time it opens (the codes found stay).
+ */
+function deletedHunter(r: unknown) {
+  if (r && typeof r === "object" && "error" in r && r.error === "unknown") forgetHunter();
+}
+
 export const minuteNow = () => Math.floor(Date.now() / 60_000);
 
 /** The PIN for a minute: the first 7 hex digits of sha256("<secret>:<minute>"), mod 10000. */
@@ -98,6 +106,7 @@ export type MeetResult =
 /** Meeting the hunter whose tag and PIN these are. */
 export async function meetHunter(me: Hunter, tag: string, pin: string): Promise<MeetResult> {
   const r = await call<MeetResult>("meet", { id: me.id, secret: me.secret, tag, pin });
+  deletedHunter(r);
   if ("ok" in r && r.ok) {
     const met = savedMeetings();
     if (!met.some((m) => m.id === r.hunter.id)) save(MET_KEY, [...met, { ...r.hunter, at: new Date().toISOString() }]);
@@ -113,9 +122,25 @@ export const savedMeetings = () => {
 /** Everyone they've met, either of them scanning (kept for offline; the saved list without a signal). */
 export async function loadMeetings(me: Hunter): Promise<Met[]> {
   const r = await call<Met[]>("meetings", { id: me.id, secret: me.secret });
+  deletedHunter(r);
   if (!Array.isArray(r)) return savedMeetings();
   save(MET_KEY, r);
   return r;
+}
+
+/**
+ * This phone's hunter ID and who they've met (see joinHunter and loadMeetings). One the organisers
+ * deleted is replaced by a new one now.
+ */
+export async function myHunter(name: string, province: string): Promise<{ hunter: Hunter | null; met: Met[] }> {
+  let hunter = await joinHunter(name, province);
+  if (!hunter) return { hunter, met: savedMeetings() };
+  let met = await loadMeetings(hunter);
+  if (!savedHunter()) {
+    hunter = await joinHunter(name, province);
+    met = hunter ? await loadMeetings(hunter) : [];
+  }
+  return { hunter, met };
 }
 
 // ---- SHA-256: the browser's own where it can (https), else this (an http page on the local network)

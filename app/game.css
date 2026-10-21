@@ -112,7 +112,8 @@ code {
 .tabbar svg,
 .btn svg,
 .station__status svg,
-.scan__nocam svg {
+.scan__nocam svg,
+.scan__noloc svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -2614,6 +2615,53 @@ button.psec__head {
 .chip--gps.is-weak {
   border-color: rgba(255, 107, 107, 0.5);
   color: #ffb4b4;
+}
+/* No location: the hunt needs it, so it's said in the middle of the screen until it's back */
+.scan__noloc {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(340px, calc(100% - 32px));
+  padding: 20px 18px 18px;
+  border: 1px solid rgba(255, 107, 107, 0.45);
+  border-radius: 18px;
+  background: rgba(2, 6, 17, 0.88);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+.scan__noloc svg {
+  width: 36px;
+  height: 36px;
+  stroke: #ffb4b4;
+  stroke-width: 1.8;
+}
+.scan__noloc b {
+  font-size: 17px;
+  color: #fff;
+}
+.scan__noloc p {
+  margin: 0 0 6px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.scan__noloc.is-lost svg {
+  animation: noloc-pulse 1.4s ease-in-out infinite;
+}
+@keyframes noloc-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan__noloc.is-lost svg {
+    animation: none;
+  }
 }
 /* No location: try again (and, in test mode, random spots instead) */
 .scan__locate {

@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { pad2 } from "@/lib/dom";
 import { TASK_TEXT, type Station } from "@/lib/hunt";
-import { joinHunter, loadMeetings, meetHunter, readBadge, savedHunter, savedMeetings, type Hunter, type Met } from "@/lib/hunter";
+import { loadMeetings, meetHunter, myHunter, readBadge, savedHunter, savedMeetings, type Hunter, type Met } from "@/lib/hunter";
 import { progress, useProgress } from "@/lib/store";
 import { HunterQr } from "./HunterQr";
 import { CameraIcon, CheckIcon, CloseIcon, KeyboardIcon, ScanIcon, UsersIcon } from "./icons";
@@ -57,11 +57,10 @@ export function TaskSheet({ station, onClose, onFind }: { station: Station; onCl
   // This phone's hunter ID (made now if it hasn't one yet), and who they've met
   useEffect(() => {
     let alive = true;
-    void joinHunter(p.name, p.province).then(async (h) => {
-      if (!alive || !h) return;
-      setMe(h);
-      const list = await loadMeetings(h);
-      if (alive) setMet(list);
+    void myHunter(p.name, p.province).then(({ hunter, met }) => {
+      if (!alive || !hunter) return;
+      setMe(hunter);
+      setMet(met);
     });
     return () => {
       alive = false;

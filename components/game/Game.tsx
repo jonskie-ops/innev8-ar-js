@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { prizeProgress, standing, stationFromPayload, unlocked, type Prize, type Station } from "@/lib/hunt";
-import { joinHunter } from "@/lib/hunter";
+import { myHunter } from "@/lib/hunter";
 import { getHunt, useHunt } from "@/lib/huntStore";
 import { askMotion } from "@/lib/motion";
 import { progress, useProgress } from "@/lib/store";
@@ -82,9 +82,10 @@ export function Game({ phase }: { phase: Phase }) {
     setPending(null);
   }, [pending, signedUp, p.found, p.tasks, showToast]);
 
-  // Their hunter ID (networking), made in the background once they've signed up
+  // Their hunter ID (networking), made (or, deleted by the organisers, made again) in the background
+  // once they've signed up
   useEffect(() => {
-    if (signedUp) void joinHunter(p.name, p.province);
+    if (signedUp) void myHunter(p.name, p.province);
   }, [signedUp, p.name, p.province]);
 
   const closeScan = useCallback(() => setScan(null), []);

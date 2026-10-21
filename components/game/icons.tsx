@@ -146,6 +146,14 @@ export function PinIcon() {
   );
 }
 
+export function PinOffIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 3l18 18M8.2 4.1A7 7 0 0 1 19 9.5c0 1.9-.9 3.9-2 5.7M14.6 17.6C13.3 19.6 12 21 12 21s-7-6.2-7-11.5c0-.6.1-1.2.2-1.8" />
+    </svg>
+  );
+}
+
 export function ChevronDownIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">

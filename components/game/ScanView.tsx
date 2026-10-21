@@ -10,7 +10,7 @@ import { COLLECT_HIT_MS } from "@/lib/sfx";
 import { useProgress } from "@/lib/store";
 import { ScanQufoo, type Line } from "../Mascot";
 import type { ArMode, ArPhase, ArStage, CamState, Guide, Near } from "./ar/stage";
-import { ArrowRightIcon, CameraOffIcon, CloseIcon, LockIcon } from "./icons";
+import { ArrowRightIcon, CameraOffIcon, CloseIcon, LockIcon, PinOffIcon } from "./icons";
 import { QrTile } from "./QrTile";
 
 /** Random spots: codes hidden around the player each time the scanner opens. */
@@ -41,6 +41,30 @@ const LOCATION_HINT: Record<Exclude<LocationState["status"], "on">, string> = {
   denied: "Location is blocked. Allow it for this site, then tap Try again: QR codes show when you're near them.",
   unavailable: "No GPS signal yet. Step outside or near a window.",
   insecure: "Location needs the game's https address.",
+  lost: "Your location turned off.",
+};
+
+/**
+ * The hunt needs the player's location (QR codes show only near them): with none, the scanner says
+ * so in the middle of the screen until it's back.
+ */
+const NO_LOCATION: Record<"denied" | "unavailable" | "insecure" | "lost", { title: string; text: string }> = {
+  lost: {
+    title: "Your location turned off",
+    text: "The hunt needs it: QR codes show only when you're near them. Turn Location back on for your phone, and the hunt carries on by itself.",
+  },
+  denied: {
+    title: "Turn on your location",
+    text: "The hunt needs it: QR codes show only when you're near them. Allow location for this site (and turn Location on for your phone), then tap Try again.",
+  },
+  unavailable: {
+    title: "Can't find your location",
+    text: "Check that Location is on for your phone, then step outside or near a window.",
+  },
+  insecure: {
+    title: "Location needs https",
+    text: "Open the game at its https address so it can use your location.",
+  },
 };
 
 /** Random spots: a few of the codes still to find, always including the one the player chose (if any). */
@@ -140,6 +164,9 @@ export function ScanView({
   useEffect(() => {
     if (range.entered) navigator.vibrate?.([60, 50, 60]); // one more in range
   }, [range.entered]);
+  useEffect(() => {
+    if (gps && loc.status === "lost") navigator.vibrate?.([250, 120, 250]); // its location just turned off
+  }, [gps, loc.status]);
   // The code headed for: the one the player chose, else (GPS) the nearest still to find
   const aimed = gps && !picked && ways[0] ? ways[0].s : chosen;
   useEffect(() => {
@@ -276,7 +303,10 @@ export function ScanView({
   const turn = aim && !aimIn && compass !== null ? ((aim.b - compass + 540) % 360) - 180 : null;
   const closeness = aim ? Math.min(1, Math.max(0, 1 - (aim.d - aim.s.radius) / (METER_FROM - aim.s.radius))) : 0;
   const showMeter = gps && phase === "searching" && Boolean(fix) && Boolean(aim);
-  const noLocation = gps && phase === "searching" && !fix && loc.status !== "asking" && loc.status !== "off";
+  const noLocation =
+    gps && phase === "searching" && !fix && loc.status !== "asking" && loc.status !== "off" && loc.status !== "on"
+      ? NO_LOCATION[loc.status]
+      : null;
 
   return (
     <div
@@ -371,14 +401,11 @@ export function ScanView({
       )}
 
       {/* What's happening, just above the scan frame */}
-      {hint !== null && (
-        <p className="scan__hint" aria-live="polite">
-          {hint}
-        </p>
-      )}
-
-      <div className="scan__bottom">
-        {noLocation && (
+      {noLocation && (
+        <div className={loc.status === "lost" ? "scan__noloc is-lost" : "scan__noloc"} role="alert">
+          <PinOffIcon />
+          <b>{noLocation.title}</b>
+          <p>{noLocation.text}</p>
           <div className="scan__locate">
             {loc.status !== "insecure" && (
               <button type="button" className="btn btn--primary btn--sm" onClick={retryLocation}>
@@ -391,7 +418,16 @@ export function ScanView({
               </button>
             )}
           </div>
-        )}
+        </div>
+      )}
+
+      {hint !== null && !noLocation && (
+        <p className="scan__hint" aria-live="polite">
+          {hint}
+        </p>
+      )}
+
+      <div className="scan__bottom">
         {xr === "offer" && (
           <>
             <button type="button" className="btn btn--primary btn--sm" onClick={() => stageRef.current?.startXr()}>
