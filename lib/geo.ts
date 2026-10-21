@@ -66,3 +66,53 @@ export function bearing(a: LatLng, b: LatLng) {
 /** "8 m", "120 m", "2.4 km" (never split across lines) */
 export const howFar = (m: number) =>
   m < 1000 ? `${Math.max(1, Math.round(m))} m` : `${(m / 1000).toFixed(1)} km`;
+
+/** Leyte Academic Center's location id: its map is drawn by hand (lib/venue.ts); any other's comes from OpenStreetMap. */
+export const DEFAULT_PLACE = "lac";
+
+/**
+ * Where the hunt can be played (the admin's Locations): its middle, how wide its map is (metres) and
+ * its map's drawings from OpenStreetMap, in plan units (null: Leyte Academic Center's own, or none yet).
+ */
+export type Place = {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  width: number;
+  outlines: { buildings: string; roads: string; grounds: string } | null;
+};
+
+export const LAC_PLACE: Place = {
+  id: DEFAULT_PLACE,
+  name: "Leyte Academic Center",
+  address: "Barangay Pawing, Palo, Leyte",
+  lat: 11.17687,
+  lng: 125.003127,
+  width: 100,
+  outlines: null,
+};
+
+/**
+ * A place's map in plan units (360×520), as the admin draws it (INNEV8-AR-ADMIN, lib/venue.ts,
+ * planOf: keep the two the same). Leyte Academic Center: the hand-drawn plan above. Any other: north
+ * up, its middle at (180, 260), `width` metres across 300 units.
+ */
+export function planOf(p: Pick<Place, "id" | "lat" | "lng" | "width">) {
+  if (p.id === DEFAULT_PLACE) return { hand: true, toPlan, toLatLng, perM: PER_M };
+  const k = 300 / p.width;
+  const cos = Math.cos(p.lat * RAD);
+  return {
+    hand: false,
+    toPlan: (lat: number, lng: number) => ({
+      x: 180 + (lng - p.lng) * RAD * EARTH * cos * k,
+      y: 260 - (lat - p.lat) * RAD * EARTH * k,
+    }),
+    toLatLng: (x: number, y: number): LatLng => ({
+      lat: +(p.lat + (260 - y) / k / EARTH / RAD).toFixed(7),
+      lng: +(p.lng + (x - 180) / k / (EARTH * cos) / RAD).toFixed(7),
+    }),
+    perM: k,
+  };
+}

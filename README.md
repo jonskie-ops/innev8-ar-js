@@ -114,6 +114,16 @@ that spot: 10 m unless the organisers set more (indoors, where GPS is rougher).
   allowed the location; the button by the zoom), each code's range ring when selected, and its
   distance on its card.
 
+**Locations:** the hunt can be played somewhere other than Leyte Academic Center. The organisers add
+locations on the admin's Locations page, and each code is at one; the hunt (`places` in `/api/hunt`)
+has every location that's on, and only their codes. Leyte Academic Center's map is drawn by hand
+(`lib/venue.ts`); any other's comes from OpenStreetMap's buildings, roads and grounds around it,
+drawn by the admin into the same plan units (`planOf` in `lib/geo.ts`: north up, its middle at
+(180, 260), its width across 300 units) and shown in the same holographic style. With more than
+one location on, chips above the map switch between them; the map opens on the player's nearest
+(or a picked code's). Before the admin's locations update, `places` is null: Leyte Academic Center
+only, as before.
+
 **Random spots** (the admin's Event page) is for trying the scanner away from the venue: a few codes
 go at random spots around the player each time the scanner opens, as before. In test mode, if the
 phone can't give its location, the scanner offers it too. The location, like the camera, only works on
@@ -228,9 +238,9 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
 | `app/api/hunt/route.ts`, `lib/hunt-server.ts` | The hunt from the admin's database, kept 30 seconds |
 | `lib/huntStore.ts` | The hunt on the phone: checked for changes, kept for offline |
 | `lib/venue.ts` | Real building outlines for the map (© OpenStreetMap contributors, ODbL) |
-| `components/game/VenueMap.tsx` | 3D holographic venue map |
+| `components/game/VenueMap.tsx` | 3D holographic map of a location: Leyte Academic Center by hand, any other from OpenStreetMap |
 | `lib/store.ts` | Saved progress |
 | `lib/site.ts` | The dates and test mode the game starts with (the admin's replace them) |
-| `lib/geo.ts` | The venue plan ↔ latitude/longitude (the admin's `lib/venue.ts` has the same numbers), distance and direction |
+| `lib/geo.ts` | Each location's plan ↔ latitude/longitude (the admin's `lib/venue.ts` has the same numbers), distance and direction |
 | `lib/location.ts` | The player's GPS, smoothed and shared by the scanner and the map |
 | `app/globals.css`, `app/game.css` | Styles |

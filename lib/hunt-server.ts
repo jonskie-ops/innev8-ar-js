@@ -1,5 +1,5 @@
 import { cacheLife } from "next/cache";
-import { toLatLng } from "./geo";
+import { DEFAULT_PLACE, planOf, type Place } from "./geo";
 import { RADIUS, TASKS, type Hunt, type Prize, type PrizeRule, type Rarity, type Station, type Task, type Zone } from "./hunt";
 import { builtInBadge, firstSponsor, type Sponsor } from "./sponsors";
 
@@ -31,7 +31,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
       if (!res.ok) throw new Error(`${path}: ${res.status}`);
       return res.json();
     };
-    const [codes, zones, prizes, settings, sponsors] = await Promise.all([
+    const [codes, zones, prizes, settings, sponsors, places] = await Promise.all([
       // Every column: a database without the networking, sponsors or GPS update yet simply has no task,
       // sponsor or GPS spot (nor random spots, in the settings)
       get<CodeRow>("codes?select=*&live=eq.true&order=num"),
@@ -43,6 +43,12 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
         if (/: 404$/.test(e.message)) return null;
         throw e;
       }),
+      // The locations that are on (their codes are the only ones the database hands out): null
+      // before the locations update, when every code is at Leyte Academic Center
+      get<PlaceRow>("locations?select=id,name,address,lat,lng,width,outlines&live=eq.true&order=sort,created_at").catch((e: Error) => {
+        if (/: 404$/.test(e.message)) return null;
+        throw e;
+      }),
     ]);
     const s = settings[0];
     if (!s) throw new Error("no settings");
@@ -50,10 +56,15 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
       at,
       hunt: {
         stations: codes.map((c): Station => {
-          // Its own GPS spot, or (none yet, or before the GPS update) where its venue map pin is
+          // Its own GPS spot, or (none yet, or before the GPS update) where its map pin is
+          const location = c.location_id ?? DEFAULT_PLACE;
+          const place = places?.find((p) => p.id === location);
           const lat = n(c.lat);
           const lng = n(c.lng);
-          const spot = lat !== null && lng !== null ? { lat, lng } : toLatLng(Number(c.x), Number(c.y));
+          const spot =
+            lat !== null && lng !== null
+              ? { lat, lng }
+              : planOf(place ? { id: place.id, lat: Number(place.lat), lng: Number(place.lng), width: Number(place.width) } : { id: DEFAULT_PLACE, lat: 0, lng: 0, width: 1 }).toLatLng(Number(c.x), Number(c.y));
           const radius = n(c.radius);
           return {
             id: c.id,
@@ -67,6 +78,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             task: TASKS.includes(c.task as Task) ? (c.task as Task) : "none",
             // A database without sponsors yet: each code's first sponsor, as the update would start it
             sponsor: c.sponsor ?? firstSponsor(c.num),
+            location,
             clue: c.clue,
             blurb: c.blurb,
             x: Number(c.x),
@@ -92,6 +104,21 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             value: p.rule_value,
           }),
         ),
+        places:
+          places?.map(
+            (p): Place => ({
+              id: p.id,
+              name: p.name,
+              address: p.address ?? "",
+              lat: Number(p.lat),
+              lng: Number(p.lng),
+              width: Number(p.width),
+              outlines:
+                p.outlines && typeof p.outlines.buildings === "string"
+                  ? { buildings: p.outlines.buildings, roads: p.outlines.roads ?? "", grounds: p.outlines.grounds ?? "" }
+                  : null,
+            }),
+          ) ?? null,
         sponsors: sponsors
           ?.map((r): Sponsor | null => {
             // Their badge, through the game's own address (kept on the phone like its other pictures);
@@ -131,6 +158,7 @@ type CodeRow = {
   y: number | string;
   task?: string;
   sponsor?: string;
+  location_id?: string;
   lat?: number | string | null;
   lng?: number | string | null;
   radius?: number | string;
@@ -143,6 +171,15 @@ type PrizeRow = {
   photo_path: string | null;
   rule: PrizeRule;
   rule_value: number | null;
+};
+type PlaceRow = {
+  id: string;
+  name: string;
+  address?: string;
+  lat: number | string;
+  lng: number | string;
+  width: number | string;
+  outlines: { buildings?: string; roads?: string; grounds?: string } | null;
 };
 type SponsorRow = { id: string; name: string; badge_path: string | null };
 type SettingsRow = { starts_at: string; ends_at: string; test_mode: boolean; claim_place: string; random_spots?: boolean };

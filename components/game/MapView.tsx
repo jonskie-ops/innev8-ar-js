@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { pad2 } from "@/lib/dom";
-import { howFar, metresBetween, PLAN_PER_M, toPlan } from "@/lib/geo";
+import { howFar, LAC_PLACE, metresBetween, planOf, type Place } from "@/lib/geo";
 import { RARITY_LABEL, TASK_TEXT, unlocked, zoneName, type Station } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
 import { locationAllowed, useLocation } from "@/lib/location";
 import { useProgress } from "@/lib/store";
-import { CheckIcon, CloseIcon, LocateIcon, LockIcon, ScanIcon } from "./icons";
+import { CheckIcon, CloseIcon, LocateIcon, LockIcon, PinIcon, ScanIcon } from "./icons";
 import { QrTile } from "./QrTile";
 import { VenueMap } from "./VenueMap";
 
@@ -15,6 +15,15 @@ import { VenueMap } from "./VenueMap";
 const OFF_MAP = 400;
 /** The accuracy ring is drawn no bigger than this (m), so a rough fix doesn't cover the map. */
 const RING_MAX = 60;
+
+/**
+ * The locations to show: those that are on and have codes (Leyte Academic Center alone before the
+ * admin's locations update).
+ */
+function placesOf(places: Place[] | null, stations: Station[]) {
+  const withCodes = (places ?? [LAC_PLACE]).filter((p) => stations.some((s) => s.location === p.id));
+  return withCodes.length ? withCodes : (places?.slice(0, 1) ?? [LAC_PLACE]);
+}
 
 /**
  * Home screen: the 3D venue map with a beacon for every QR code, and the selected spot. With the
@@ -50,27 +59,58 @@ export function MapView({
   }, []);
   const loc = useLocation(locating && !random);
   const fix = locating && !random ? loc.fix : null;
-  const at = fix ? toPlan(fix.lat, fix.lng) : null;
-  const fromVenue = fix && hunt.stations[0] ? Math.min(...hunt.stations.map((s) => metresBetween(fix, s))) : 0;
-  const onMap = at && fromVenue < OFF_MAP;
+
+  // Which location's map: the picked code's, else the one picked above the map, else the nearest
+  // to the player, else the first
+  const places = placesOf(hunt.places, hunt.stations);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const nearest = fix ? [...places].sort((a, b) => metresBetween(fix, a) - metresBetween(fix, b))[0]?.id : null;
+  const place = places.find((p) => p.id === (sel?.location ?? chosen ?? nearest)) ?? places[0];
+  const plan = planOf(place);
+  const here = hunt.stations.filter((s) => s.location === place.id);
+
+  const at = fix ? plan.toPlan(fix.lat, fix.lng) : null;
+  const fromVenue = fix && here[0] ? Math.min(...here.map((s) => metresBetween(fix, s))) : 0;
+  const onMap = at && fromVenue < OFF_MAP + (plan.hand ? 0 : place.width / 2);
   const away = fix && sel ? metresBetween(fix, sel) : null;
 
   return (
     <div className="mapview">
       <VenueMap
+        key={place.id}
+        place={place}
         found={found}
         focus={focus}
         onFocus={onFocus}
-        me={onMap && at ? { ...at, r: Math.min(fix!.accuracy, RING_MAX) * PLAN_PER_M } : null}
+        me={onMap && at ? { ...at, r: Math.min(fix!.accuracy, RING_MAX) * plan.perM } : null}
         locating={locating}
         onLocate={random ? undefined : () => setLocating(!locating)}
       />
 
+      {places.length > 1 && (
+        <div className="mapview__places" role="group" aria-label="Locations">
+          {places.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={p.id === place.id}
+              onClick={() => {
+                setChosen(p.id);
+                if (sel && sel.location !== p.id) onFocus(null);
+              }}
+            >
+              <PinIcon />
+              <span>{p.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {locating && !random && (!fix || !onMap) && (
-        <p className="mapview__where" role="status">
+        <p className={places.length > 1 ? "mapview__where is-low" : "mapview__where"} role="status">
           <LocateIcon />
           {fix
-            ? `You're ${howFar(fromVenue)} from the QR codes`
+            ? `You're ${howFar(fromVenue)} from ${places.length > 1 ? `${place.name}'s` : "the"} QR codes`
             : loc.status === "denied"
               ? "Location is blocked for this site"
               : loc.status === "insecure"

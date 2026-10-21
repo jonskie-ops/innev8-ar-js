@@ -1,21 +1,25 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { PLAN_PER_M } from "@/lib/geo";
+import { planOf, type Place } from "@/lib/geo";
 import { useHunt } from "@/lib/huntStore";
 import { VENUE } from "@/lib/venue";
 import { CheckIcon, FitIcon, LocateIcon, MinusIcon, PlusIcon } from "./icons";
 import { cameraTransform, MAX_ZOOM, useMapCamera, type Home } from "./useMapCamera";
 
+type View = { x: number; y: number; w: number; h: number };
 /** The part of the 360×520 plan shown on the plane: framed on the two buildings (same aspect ratio). */
-const VIEW = { x: 30, y: 26, w: 300, h: 433 };
+const LAC_VIEW: View = { x: 30, y: 26, w: 300, h: 433 };
+/** Any other location: its middle (180, 260) in the middle */
+const PLACE_VIEW: View = { x: 30, y: 43.5, w: 300, h: 433 };
 
 /**
  * The floor drawing extends this far past the view on each side (as a fraction of the view), so the
  * grounds run on and fade out (CSS mask) instead of stopping at a hard edge.
  */
 const BLEED = { x: 0.5, y: 0.4 };
-const FLOOR_BOX = `${VIEW.x - VIEW.w * BLEED.x} ${VIEW.y - VIEW.h * BLEED.y} ${VIEW.w * (1 + 2 * BLEED.x)} ${VIEW.h * (1 + 2 * BLEED.y)}`;
+const floorBox = (VIEW: View) =>
+  `${VIEW.x - VIEW.w * BLEED.x} ${VIEW.y - VIEW.h * BLEED.y} ${VIEW.w * (1 + 2 * BLEED.x)} ${VIEW.h * (1 + 2 * BLEED.y)}`;
 const FLOOR_STYLE: CSSProperties = {
   left: `${-BLEED.x * 100}%`,
   top: `${-BLEED.y * 100}%`,
@@ -24,7 +28,7 @@ const FLOOR_STYLE: CSSProperties = {
 };
 
 /** Position of an upright element on the floor plane, as percentages of the view. */
-const at = (x: number, y: number, i = 0) =>
+const at = (VIEW: View, x: number, y: number, i = 0) =>
   ({
     "--x": `${((x - VIEW.x) / VIEW.w) * 100}%`,
     "--y": `${((y - VIEW.y) / VIEW.h) * 100}%`,
@@ -35,11 +39,13 @@ const at = (x: number, y: number, i = 0) =>
  * The map opens zoomed in and centred on the Annex A–B building and its codes (as wide as a phone allows), and doesn't zoom
  * out any further than that.
  */
-const HOME: Home = {
+const LAC_HOME: Home = {
   z: 1.1,
-  x: (161 - (VIEW.x + VIEW.w / 2)) / VIEW.w,
-  y: (137 - (VIEW.y + VIEW.h / 2)) / VIEW.h, // the building with its pins, balanced top and bottom
+  x: (161 - (LAC_VIEW.x + LAC_VIEW.w / 2)) / LAC_VIEW.w,
+  y: (137 - (LAC_VIEW.y + LAC_VIEW.h / 2)) / LAC_VIEW.h, // the building with its pins, balanced top and bottom
 };
+/** Any other location opens on its middle */
+const PLACE_HOME: Home = { z: 1.1, x: 0, y: 0 };
 
 
 const WALLS = VENUE.annex;
@@ -61,13 +67,15 @@ const STALLS = Array.from({ length: 15 }, (_, i) => {
 const LANDMARKS = [{ name: "Parking", x: 112, y: 452, tone: "dim" }] as const;
 
 /**
- * Leyte Academic Center as a glowing holographic site plan, seen straight from above (styled after
+ * A location as a glowing holographic site plan: Leyte Academic Center drawn by hand, any other from
+ * OpenStreetMap's buildings, roads and grounds (`place.outlines`, drawn by the admin), seen straight from above (styled after
  * the main site's Eastern Visayas map). Zone names and QR spots stand on it like map pins; tap a spot
  * to select it (its dashed ring: how close you must be for it to show in the scanner). Pinch, wheel or
  * the +/− buttons zoom (HOME.z–MAX_ZOOM); drag pans. `me`: the player, as a dot with a ring for how
  * sure the GPS is (plan units); the locate button turns that on and off.
  */
 export function VenueMap({
+  place,
   found,
   focus,
   onFocus,
@@ -75,6 +83,8 @@ export function VenueMap({
   locating = false,
   onLocate,
 }: {
+  /** The location shown, with its codes (key the map by it: a new one opens at its home view) */
+  place: Place;
   found: Record<string, number>;
   focus: string | null;
   onFocus: (id: string) => void;
@@ -82,18 +92,25 @@ export function VenueMap({
   locating?: boolean;
   onLocate?: () => void;
 }) {
+  const plan = planOf(place);
+  const VIEW = plan.hand ? LAC_VIEW : PLACE_VIEW;
+  const HOME = plan.hand ? LAC_HOME : PLACE_HOME;
   const { boxRef, layerRef, mapRef, cam, atHome, gesturing, zoomIn, zoomOut, reset } = useMapCamera(HOME);
   const zoomed = cam.z > 1.001;
-  // The codes that are on, and the zones with a name tag (the Courtyard keeps its codes, not a tag)
-  const { stations, zones } = useHunt().hunt;
-  const tags = zones.filter((z) => z.label);
+  // This location's codes that are on, and the zones with a name tag (the Courtyard keeps its codes,
+  // not a tag; only Leyte Academic Center's plan has tags)
+  const { hunt } = useHunt();
+  const stations = hunt.stations.filter((s) => s.location === place.id);
+  const tags = plan.hand ? hunt.zones.filter((z) => z.label) : [];
+  const landmarks = plan.hand ? LANDMARKS : [];
+  const osm = plan.hand ? null : place.outlines;
 
   return (
     <div
       ref={boxRef}
       className={`v3d${zoomed ? " is-zoomed" : ""}${gesturing ? " is-gesturing" : ""}`}
       role="group"
-      aria-label="Map of Leyte Academic Center"
+      aria-label={`Map of ${place.name}`}
     >
       <div className="v3d__glow" aria-hidden="true"></div>
       <div ref={layerRef} className="v3d__cam" style={{ transform: cameraTransform(cam) }}>
@@ -102,7 +119,21 @@ export function VenueMap({
             <div className="v3d__grid" aria-hidden="true"></div>
             <div className="v3d__sweep" aria-hidden="true"></div>
 
-            <svg className="v3d__floor" viewBox={FLOOR_BOX} style={FLOOR_STYLE} aria-hidden="true">
+            <svg className="v3d__floor" viewBox={floorBox(VIEW)} style={FLOOR_STYLE} aria-hidden="true">
+              {osm && (
+                <>
+                  <g className="v3d__grounds">
+                    <path className="v3d__lot" d={osm.grounds} />
+                    <path className="v3d__road v3d__road--osm" d={osm.roads} />
+                    <path className="v3d__road-line v3d__road--osm" d={osm.roads} />
+                  </g>
+                  <path className="v3d__slab" d={osm.buildings} />
+                  <path className="v3d__wall-glow v3d__wall--osm" d={osm.buildings} pathLength="1" />
+                  <path className="v3d__wall v3d__wall--osm" d={osm.buildings} pathLength="1" />
+                </>
+              )}
+              {plan.hand && (
+              <>
               <g className="v3d__grounds">
                 <path className="v3d__road" d={VENUE.roads} />
                 <path className="v3d__road-line" d={VENUE.roads} />
@@ -126,6 +157,8 @@ export function VenueMap({
               <path className="v3d__wall-glow" d={WALLS} pathLength="1" />
               <path className="v3d__wall" d={WALLS} pathLength="1" />
               <path className="v3d__room" d={PARTITIONS} pathLength="1" />
+              </>
+              )}
               {stations.map((s) => (
                 <g
                   key={s.id}
@@ -134,7 +167,7 @@ export function VenueMap({
                   }`}
                 >
                   {focus === s.id && !found[s.id] && (
-                    <circle className="v3d__range" cx={s.x} cy={s.y} r={s.radius * PLAN_PER_M} />
+                    <circle className="v3d__range" cx={s.x} cy={s.y} r={s.radius * plan.perM} />
                   )}
                   {!found[s.id] && <circle className="v3d__ring" cx={s.x} cy={s.y} r="12" />}
                   <circle className="v3d__core" cx={s.x} cy={s.y} r="4.5" />
@@ -150,15 +183,15 @@ export function VenueMap({
             </svg>
 
             {tags.map((z, i) => (
-              <span key={z.id} className="v3d__up v3d__tag" style={at(z.label!.x, z.label!.y, i)} aria-hidden="true">
+              <span key={z.id} className="v3d__up v3d__tag" style={at(VIEW, z.label!.x, z.label!.y, i)} aria-hidden="true">
                 <i>{z.name}</i>
               </span>
             ))}
-            {LANDMARKS.map((l, i) => (
+            {landmarks.map((l, i) => (
               <span
                 key={l.name}
                 className={`v3d__up v3d__tag v3d__tag--${l.tone}`}
-                style={at(l.x, l.y, tags.length + i)}
+                style={at(VIEW, l.x, l.y, tags.length + i)}
                 aria-hidden="true"
               >
                 <i>{l.name}</i>
@@ -174,7 +207,7 @@ export function VenueMap({
                   className={`v3d__up beacon beacon--${s.rarity}${got ? " is-found" : ""}${
                     focus === s.id ? " is-focus" : ""
                   }`}
-                  style={at(s.x, s.y, i)}
+                  style={at(VIEW, s.x, s.y, i)}
                   onClick={() => onFocus(s.id)}
                   aria-label={got ? `QR code #${s.num}, ${s.name}, found` : `QR code #${s.num}, not found yet`}
                   aria-pressed={focus === s.id}

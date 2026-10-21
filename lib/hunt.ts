@@ -9,7 +9,7 @@
  * the VenueMap's 360×520 plan units (x right, y down).
  */
 
-import { toLatLng } from "./geo";
+import { DEFAULT_PLACE, toLatLng, type Place } from "./geo";
 import { EVENT_END, EVENT_START, TEST_MODE } from "./site";
 import { firstSponsor, type Sponsor } from "./sponsors";
 
@@ -45,7 +45,9 @@ export type Station = {
   sponsor: string;
   clue: string;
   blurb: string;
-  /** Position on the venue map. */
+  /** Its location (lib/geo.ts, Place): "lac" for Leyte Academic Center. */
+  location: string;
+  /** Position on its location's map (plan units). */
   x: number;
   y: number;
   /** Where it is on the ground (its GPS spot, set in the admin; else its map pin's place). */
@@ -58,7 +60,7 @@ export type Station = {
 /** A code's distance (m) until the organisers set one. */
 export const RADIUS = 10;
 
-const BUILT_IN_STATIONS: Omit<Station, "points" | "task" | "sponsor" | "lat" | "lng" | "radius">[] = [
+const BUILT_IN_STATIONS: Omit<Station, "points" | "task" | "sponsor" | "location" | "lat" | "lng" | "radius">[] = [
   {
     id: "px01",
     code: "I8AR-01-M2VD",
@@ -215,7 +217,15 @@ export type Settings = {
  * The hunt as the game plays it: the codes that are on, sorted by number. `sponsors`: the
  * organisers' (their names and badges), or null for the ones that came with the game.
  */
-export type Hunt = { stations: Station[]; zones: Zone[]; prizes: Prize[]; sponsors: Sponsor[] | null; settings: Settings };
+export type Hunt = {
+  stations: Station[];
+  zones: Zone[];
+  prizes: Prize[];
+  sponsors: Sponsor[] | null;
+  /** The locations that are on (null: only Leyte Academic Center, before the admin's locations update) */
+  places: Place[] | null;
+  settings: Settings;
+};
 
 export const BUILT_IN: Hunt = {
   stations: BUILT_IN_STATIONS.map((s) => ({
@@ -223,12 +233,14 @@ export const BUILT_IN: Hunt = {
     points: POINTS[s.rarity],
     task: "none" as const,
     sponsor: firstSponsor(s.num),
+    location: DEFAULT_PLACE,
     ...toLatLng(s.x, s.y),
     radius: RADIUS,
   })),
   zones: BUILT_IN_ZONES,
   prizes: [],
   sponsors: null,
+  places: null,
   settings: {
     start: EVENT_START.getTime(),
     end: EVENT_END.getTime(),

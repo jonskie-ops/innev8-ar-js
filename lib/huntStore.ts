@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { toLatLng } from "./geo";
+import { DEFAULT_PLACE, toLatLng, type Place } from "./geo";
 import { BUILT_IN, RADIUS, RARITIES, TASKS, type Hunt, type Prize, type PrizeRule, type Station, type Task, type Zone } from "./hunt";
 import { firstSponsor, type Sponsor } from "./sponsors";
 
@@ -144,7 +144,8 @@ function parseStation(v: unknown): Station | null {
   // and before GPS spots: where its map pin is, at the usual distance
   const spot = num(s.lat) && num(s.lng) ? { lat: s.lat, lng: s.lng } : toLatLng(s.x, s.y);
   const radius = num(s.radius) && s.radius > 0 ? s.radius : RADIUS;
-  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, task, sponsor, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y, ...spot, radius };
+  const location = str(s.location) ? s.location : DEFAULT_PLACE; // and before locations: Leyte Academic Center
+  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, task, sponsor, location, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y, ...spot, radius };
 }
 function parseZone(v: unknown): Zone | null {
   const z = v as Partial<Zone> | null;
@@ -163,6 +164,13 @@ function parsePrize(v: unknown): Prize | null {
     rule: p.rule!,
     value: num(p.value) ? p.value : null,
   };
+}
+function parsePlace(v: unknown): Place | null {
+  const p = v as Partial<Place> | null;
+  if (!p || !str(p.id) || !str(p.name) || !num(p.lat) || !num(p.lng) || !num(p.width) || p.width <= 0) return null;
+  const o = p.outlines;
+  const outlines = o && str(o.buildings) && str(o.roads) && str(o.grounds) ? { buildings: o.buildings, roads: o.roads, grounds: o.grounds } : null;
+  return { id: p.id, name: p.name, address: str(p.address) ? p.address : "", lat: p.lat, lng: p.lng, width: p.width, outlines };
 }
 function parseSponsor(v: unknown): Sponsor | null {
   const s = v as Partial<Sponsor> | null;
@@ -183,6 +191,8 @@ function parseHunt(v: unknown): Hunt | null {
     prizes: h.prizes.map(parsePrize).filter(isSome),
     // (a copy from before the sponsor logos update, or saved before it: the game's own)
     sponsors: Array.isArray(h.sponsors) ? h.sponsors.map(parseSponsor).filter(isSome) : null,
+    // (before the locations update, or saved before it: Leyte Academic Center only)
+    places: Array.isArray(h.places) ? h.places.map(parsePlace).filter(isSome) : null,
     settings: { start: s.start, end: s.end, testMode: s.testMode, claimPlace: s.claimPlace, randomSpots: s.randomSpots === true },
   };
 }
