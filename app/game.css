@@ -260,7 +260,9 @@ code {
   position: relative;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 20px 16px 24px;
+  /* (at the bottom: room for Qufoo, who stands above the tab bar at the right, so the last row, a
+     prize's Claim say, scrolls clear of him) */
+  padding: 20px 16px 120px;
 }
 /* The Map tab is a full-bleed map, not a scrolling page. */
 .game__body--map {
@@ -2819,6 +2821,59 @@ button.psec__head {
   stroke-linecap: round;
   stroke-linejoin: round;
   filter: drop-shadow(0 0 12px rgba(var(--rc), 0.6));
+}
+/* The claim: its QR for the desk to scan, the code under it, or how it stands */
+.prize__claim {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-height: 60px;
+}
+.prize__qr {
+  width: min(200px, 60vw);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #fff;
+}
+.prize__qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.prize__wait {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  color: var(--muted);
+}
+.prize__given {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 6px 0 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(32, 201, 188, 0.45);
+  border-radius: 14px;
+  background: rgba(32, 201, 188, 0.1);
+  text-align: left;
+  color: var(--ice);
+}
+.prize__given svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--turq);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.prize__note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--gold);
 }
 .prize__code {
   margin: 6px 0 10px;

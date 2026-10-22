@@ -211,8 +211,11 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
 - **Venue map:** the building outlines are real (Leyte Convention Complex, Annex A, the east
   driveway and parking, from OpenStreetMap, in `lib/venue.ts`). The rooms drawn inside them, and the
   QR spots and clues (set in the admin), are placeholders until the event floor plan is final.
-- **Prize checks need a server.** Progress and the prize claim code live only on the player's phone,
-  so they can't be verified yet.
+- **Prizes are checked by the database.** Each code a player collects is sent to it (queued on the
+  phone without a signal, and sent when there is one), with where the phone was: it counts only if
+  the phone was near the code. The prize card's claim code (a QR, and `XXXX-XXXX`) comes from the
+  database, and the admin's Prize desk gives each prize once (see the admin's README, "Prize desk").
+  The player's progress screen still comes from the phone.
 - **QR code values ship in the app's JavaScript**, so a determined player could find them. Server-side
   validation fixes this too.
 

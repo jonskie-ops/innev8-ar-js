@@ -4,6 +4,15 @@ import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 import { badgeText, minuteNow, pinFor, type Hunter } from "@/lib/hunter";
 
+/** A QR code as an SVG path (its modules, one unit each, inside a 4-unit quiet zone). */
+export function qrPath(text: string) {
+  const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
+  const n = qr.modules.size;
+  let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.modules.get(r, c)) d += `M${c + 4} ${r + 4}h1v1h-1z`;
+  return { d, size: n + 8 };
+}
+
 /**
  * This player's hunter QR, for another hunter to scan: their tag and this minute's PIN (it changes
  * every minute, so an old screenshot stops working), with the same written under it for a phone whose
@@ -31,14 +40,7 @@ export function HunterQr({ hunter, name }: { hunter: Hunter; name: string }) {
     };
   }, [hunter.secret, minute]);
 
-  const path = useMemo(() => {
-    if (!pin) return null;
-    const qr = QRCode.create(badgeText(hunter.tag, pin), { errorCorrectionLevel: "M" });
-    const n = qr.modules.size;
-    let d = "";
-    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.modules.get(r, c)) d += `M${c + 4} ${r + 4}h1v1h-1z`;
-    return { d, size: n + 8 };
-  }, [hunter.tag, pin]);
+  const path = useMemo(() => (pin ? qrPath(badgeText(hunter.tag, pin)) : null), [hunter.tag, pin]);
 
   return (
     <figure className="hqr">

@@ -11,6 +11,8 @@ export type Met = { id: string; name: string; province: string; at: string };
 
 const KEY = "i8ar-hunter-v1";
 const MET_KEY = "i8ar-met-v1";
+const FINDS_KEY = "i8ar-finds-v1";
+const REFUSED_KEY = "i8ar-refused-v1";
 
 const load = <T,>(key: string): T | null => {
   try {
@@ -25,7 +27,7 @@ const save = (key: string, v: unknown) => {
   } catch {}
 };
 
-const call = async <T,>(action: string, args: Record<string, string>): Promise<T | { error: string }> => {
+const call = async <T,>(action: string, args: Record<string, string | number | null>): Promise<T | { error: string }> => {
   try {
     const res = await fetch("/api/hunter", {
       method: "POST",
@@ -69,8 +71,75 @@ export function forgetHunter() {
   try {
     localStorage.removeItem(KEY);
     localStorage.removeItem(MET_KEY);
+    localStorage.removeItem(FINDS_KEY);
+    localStorage.removeItem(REFUSED_KEY);
   } catch {}
 }
+
+// ---- Finds (the prize desk): each code collected goes to the database, which works out the prizes
+
+/** A code collected, and where the phone was (none: no location) */
+type Find = { code: string; lat: number | null; lng: number | null; accuracy: number | null };
+const queued = () => {
+  const q = load<Find[]>(FINDS_KEY);
+  return Array.isArray(q) ? q : [];
+};
+/** Codes the database didn't count (the phone wasn't near them, say): the prize card says so */
+export const refusedFinds = () => {
+  const r = load<string[]>(REFUSED_KEY);
+  return Array.isArray(r) ? r : [];
+};
+
+/** A code collected: sent now, or kept until there's a signal (and a hunter ID). */
+export function queueFind(code: string, at: { lat: number; lng: number; accuracy: number } | null) {
+  save(FINDS_KEY, [
+    ...queued().filter((f) => f.code !== code),
+    { code, lat: at?.lat ?? null, lng: at?.lng ?? null, accuracy: at ? Math.round(at.accuracy) : null },
+  ]);
+  void sendFinds();
+}
+
+let sending: Promise<void> | null = null;
+/** Sends the codes waiting to go, one by one; any that can't go yet (no signal) wait for next time. */
+export function sendFinds(): Promise<void> {
+  sending ??= (async () => {
+    const me = savedHunter();
+    if (!me) return;
+    for (const f of queued()) {
+      const r = await call<{ ok: true }>("find", { id: me.id, secret: me.secret, ...f });
+      deletedHunter(r);
+      // No signal, or a new hunter ID to make first: try again later
+      if ("error" in r && ["offline", "server", "unknown", "bad"].includes(r.error)) break;
+      save(FINDS_KEY, queued().filter((x) => x.code !== f.code));
+      const refused = refusedFinds().filter((c) => c !== f.code);
+      save(REFUSED_KEY, "error" in r && (r.error === "far" || r.error === "where") ? [...refused, f.code] : refused);
+    }
+  })().finally(() => {
+    sending = null;
+  });
+  return sending;
+}
+
+/** The database's word on a prize: won, its claim code, when it was given, how many are left. */
+export type PrizeClaim = { id: string; won: boolean; code: string | null; claimed: string | null; left: number };
+
+/**
+ * The player's prizes, from the database (their finds sent first): null without a signal (or a hunter
+ * ID yet).
+ */
+export async function loadPrizes(name: string, province: string): Promise<PrizeClaim[] | null> {
+  const { hunter } = await myHunter(name, province);
+  if (!hunter) return null;
+  await sendFinds();
+  const r = await call<{ prizes: PrizeClaim[] }>("prizes", { id: hunter.id, secret: hunter.secret });
+  deletedHunter(r);
+  return "prizes" in r && Array.isArray(r.prizes) ? r.prizes : null;
+}
+
+/** What a prize card's QR says (the desk reads the code from it). */
+export const prizeQrText = (code: string) => `INNEV8-PRIZE:${code}`;
+/** A claim code as the player reads it: "K7M2-P9QX" */
+export const claimText = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
 
 /**
  * The database doesn't know this phone's hunter ID (the organisers deleted it): forget it, so the

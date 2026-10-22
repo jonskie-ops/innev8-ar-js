@@ -178,6 +178,9 @@ function stop() {
   rough = null;
 }
 
+/** Where the player is now, as far as the phone knows (null: no location). */
+export const lastFix = () => (state.status === "on" ? state.fix : null);
+
 /** Try again after a "blocked" or "no signal" (e.g. a Try again button, once they've allowed it). */
 export function retryLocation() {
   stop();

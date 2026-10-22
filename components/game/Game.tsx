@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { prizeProgress, standing, stationFromPayload, unlocked, type Prize, type Station } from "@/lib/hunt";
-import { myHunter } from "@/lib/hunter";
+import { myHunter, queueFind, sendFinds } from "@/lib/hunter";
+import { lastFix } from "@/lib/location";
 import { getHunt, useHunt } from "@/lib/huntStore";
 import { askMotion } from "@/lib/motion";
 import { progress, useProgress } from "@/lib/store";
@@ -83,9 +84,14 @@ export function Game({ phase }: { phase: Phase }) {
   }, [pending, signedUp, p.found, p.tasks, showToast]);
 
   // Their hunter ID (networking), made (or, deleted by the organisers, made again) in the background
-  // once they've signed up
+  // once they've signed up; then the codes they collected without a signal go to the prize desk's
+  // database, and again whenever the signal comes back
   useEffect(() => {
-    if (signedUp) void myHunter(p.name, p.province);
+    if (!signedUp) return;
+    void myHunter(p.name, p.province).then(() => sendFinds());
+    const online = () => void sendFinds();
+    addEventListener("online", online);
+    return () => removeEventListener("online", online);
   }, [signedUp, p.name, p.province]);
 
   const closeScan = useCallback(() => setScan(null), []);
@@ -127,6 +133,7 @@ export function Game({ phase }: { phase: Phase }) {
       const after = standing(hunt, known, { ...p.found, [station.id]: Date.now() });
       const won = hunt.prizes.find((pr) => !prizeProgress(pr, before).won && prizeProgress(pr, after).won) ?? null;
       progress.collect(station.id);
+      queueFind(station.id, lastFix()); // (where the phone was: the database checks it was near)
       setScan(null);
       setCaught({ station, won });
     },
