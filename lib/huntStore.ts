@@ -132,7 +132,7 @@ export const getHunt = () => read();
 const isSome = <T,>(v: T | null): v is T => v !== null;
 const str = (v: unknown): v is string => typeof v === "string";
 const num = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-const RULES: PrizeRule[] = ["all", "count", "legendary", "points"];
+const RULES: PrizeRule[] = ["all", "count", "legendary", "points", "code"];
 
 function parseStation(v: unknown): Station | null {
   const s = v as Partial<Station> | null;
@@ -163,6 +163,8 @@ function parsePrize(v: unknown): Prize | null {
     photo: str(p.photo) && p.photo.startsWith("https://") ? p.photo : null,
     rule: p.rule!,
     value: num(p.value) ? p.value : null,
+    code: str(p.code) ? p.code : null,
+    text: str(p.text) ? p.text : null,
   };
 }
 function parsePlace(v: unknown): Place | null {

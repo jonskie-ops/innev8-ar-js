@@ -36,7 +36,8 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
       // sponsor or GPS spot (nor random spots, in the settings)
       get<CodeRow>("codes?select=*&live=eq.true&order=num"), // (then location by location, below)
       get<ZoneRow>("zones?select=id,name,label_x,label_y&order=sort,name"),
-      get<PrizeRow>("prizes?select=id,name,description,photo_path,rule,rule_value&live=eq.true&order=sort,created_at"),
+      // (every column: a database without the prize code update simply has no chosen code)
+      get<PrizeRow>("prizes?select=*&live=eq.true&order=sort,created_at"),
       get<SettingsRow>("settings?select=*&limit=1"),
       // The organisers' sponsors: null before the sponsor logos update (no such table: the game's own then)
       get<SponsorRow>("sponsors?select=id,name,badge_path").catch((e: Error) => {
@@ -106,6 +107,8 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             photo: p.photo_path ? `${url}/storage/v1/object/public/prizes/${encodeURI(p.photo_path)}` : null,
             rule: p.rule,
             value: p.rule_value,
+            code: p.rule_code ?? null,
+            text: p.rule_text ?? null,
           }),
         ),
         places:
@@ -176,6 +179,8 @@ type PrizeRow = {
   photo_path: string | null;
   rule: PrizeRule;
   rule_value: number | null;
+  rule_code?: string | null;
+  rule_text?: string | null;
 };
 /** Leyte Academic Center still on its hand-drawn plan (its map not drawn from OpenStreetMap yet) */
 const handDrawn = (p: PlaceRow) => p.id === DEFAULT_PLACE && p.outlines === null;

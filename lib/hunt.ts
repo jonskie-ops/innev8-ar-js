@@ -185,8 +185,8 @@ export const TASK_TEXT: Record<Exclude<Task, "none">, string> = {
 /** Can this code be looked for yet? (No task, or its task is done.) */
 export const unlocked = (s: Station, tasks: Record<string, unknown> | undefined) => s.task === "none" || Boolean(tasks?.[s.id]);
 
-/** Who wins a prize: every code, a number of codes, the legendary code, or a number of points. */
-export type PrizeRule = "all" | "count" | "legendary" | "points";
+/** Who wins a prize: every code, a number of codes, the legendary code, a number of points, or a code the organisers chose. */
+export type PrizeRule = "all" | "count" | "legendary" | "points" | "code";
 export type Prize = {
   id: string;
   name: string;
@@ -196,6 +196,9 @@ export type Prize = {
   rule: PrizeRule;
   /** The number of codes or points, for "count" and "points". */
   value: number | null;
+  /** "code": the code to find (null if it's been deleted), and the organisers' sentence ("Get the Symphonics QR") */
+  code?: string | null;
+  text?: string | null;
 };
 
 export type Settings = {
@@ -293,11 +296,13 @@ export function standing(hunt: Hunt, known: Record<string, Station>, found: Reco
     finds: mine.length,
     score: mine.reduce((sum, s) => sum + s.points, 0),
     legendary: mine.some((s) => s.rarity === "legendary"),
+    /** Which codes they've found (a prize for one chosen code) */
+    found,
   };
 }
 export type Standing = ReturnType<typeof standing>;
 
-/** "Collect all 8 QR codes", "Reach 1,000 points"… */
+/** "Collect all 8 QR codes", "Reach 1,000 points", or the organisers' own ("Get the Symphonics QR") */
 export function ruleText(p: Prize, total: number) {
   const v = p.value ?? 0;
   switch (p.rule) {
@@ -309,6 +314,8 @@ export function ruleText(p: Prize, total: number) {
       return "Find the legendary gold code";
     case "points":
       return `Reach ${v.toLocaleString("en-PH")} points`;
+    case "code":
+      return p.text || "Find a special QR code";
   }
 }
 
@@ -326,7 +333,11 @@ export function prizeProgress(p: Prize, s: Standing) {
           ? s.legendary
             ? 1
             : 0
-          : s.score / v;
+          : p.rule === "code"
+            ? p.code && s.found[p.code]
+              ? 1
+              : 0
+            : s.score / v;
   const won = p.rule === "all" ? s.total > 0 && s.count >= s.total : part >= 1;
   return { part: Math.min(1, part), won };
 }

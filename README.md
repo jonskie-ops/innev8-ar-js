@@ -219,7 +219,8 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
   phone without a signal, and sent when there is one), with where the phone was: it counts only if
   the phone was near the code. The prize card's claim code (a QR, and `XXXX-XXXX`) comes from the
   database, and the admin's Prize desk gives each prize once (see the admin's README, "Prize desk").
-  The player's progress screen still comes from the phone.
+  The player's progress screen still comes from the phone. A prize can be for one chosen code
+  (`rule: "code"`, with `code` and the organisers' sentence in `text`): finding it wins it.
 - **QR code values ship in the app's JavaScript**, so a determined player could find them. Server-side
   validation fixes this too.
 
