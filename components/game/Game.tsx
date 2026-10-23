@@ -230,7 +230,18 @@ export function Game({ phase }: { phase: Phase }) {
         <QufooDock page={tab} hidden={tab === "map" && focus !== null} />
       </nav>
 
-      {scan && <ScanView target={scan.target} found={p.found} onCatch={onCatch} onClose={closeScan} />}
+      {scan && (
+        <ScanView
+          target={scan.target}
+          found={p.found}
+          onCatch={onCatch}
+          onClose={closeScan}
+          onDex={() => {
+            closeScan();
+            setTab("dex");
+          }}
+        />
+      )}
 
       {caught && (
         <CatchCard

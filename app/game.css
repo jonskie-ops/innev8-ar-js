@@ -2778,6 +2778,21 @@ button.psec__head {
 .catch__art .qrt {
   position: relative;
 }
+/* Every code found (the scanner's pop-up): a big tick where the code's art goes */
+.allfound__art svg {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  padding: 18px;
+  border: 2px solid rgba(var(--rc), 0.6);
+  border-radius: 50%;
+  background: rgba(var(--rc), 0.14);
+  fill: none;
+  stroke: rgb(var(--rc));
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .catch .label {
   justify-content: center;
   margin: 0;

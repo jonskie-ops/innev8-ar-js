@@ -9,6 +9,7 @@ import { retryLocation, useLocation, type LocationState } from "@/lib/location";
 import { COLLECT_HIT_MS } from "@/lib/sfx";
 import { useProgress } from "@/lib/store";
 import { ScanQufoo, type Line } from "../Mascot";
+import { AllFoundCard } from "./AllFoundCard";
 import type { ArMode, ArPhase, ArStage, CamState, Guide, Near } from "./ar/stage";
 import { ArrowRightIcon, CameraOffIcon, CloseIcon, LockIcon, PinOffIcon } from "./icons";
 import { NoCodes } from "./NoCodes";
@@ -95,12 +96,15 @@ export function ScanView({
   found,
   onCatch,
   onClose,
+  onDex,
 }: {
   /** The code the player came to look for (e.g. Find it): the meter and the radar point to it. */
   target?: Station;
   found: Record<string, number>;
   onCatch: (station: Station) => void;
   onClose: () => void;
+  /** To their collection and prizes (from the pop-up once every code is found) */
+  onDex: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -231,6 +235,7 @@ export function ScanView({
 
   const count = stations.filter((s) => found[s.id]).length;
   const none = !stations.length; // every location (or code) off in the admin: nothing to find
+  const allFound = phase === "done" && !none && count === stations.length; // the pop-up says so
   const num = station ? `#${pad2(station.num)}` : "";
   const help = testMode && phase === "searching" ? guide : null; // radar and arrows are a test aid
   // The code the meter points to: the one headed for, if it's still to find
@@ -277,7 +282,7 @@ export function ScanView({
   } else if (phase === "found") hint = <>QR code {num} revealed!</>;
   else if (phase === "ready") hint = "Tap the QR code to collect it";
   else if (phase === "collecting") hint = <>Collecting QR code {num}…</>;
-  else if (phase === "done") hint = none ? null : `You've found all ${stations.length} QR codes!`;
+  else if (phase === "done") hint = none || allFound ? null : `You've found all ${stations.length} QR codes!`;
 
   const camMessage = cam && xr !== "on" ? CAM_MESSAGE[cam] : undefined;
   // Qufoo sniffs while you search (you hear him sniff), and speaks up once a code is near
@@ -294,7 +299,7 @@ export function ScanView({
           ? { text: "Tap it to collect it!" }
           : phase === "collecting"
             ? { text: "Got it! Good job!", wait: COLLECT_HIT_MS } // after the collect sound's hit
-            : phase === "done" && !none
+            : phase === "done" && !none && !allFound
               ? { text: `You found all ${stations.length}! Amazing!` }
               : null;
   // Test aid: how this phone follows the player's movement
@@ -323,6 +328,7 @@ export function ScanView({
       <div className="scan__shade" aria-hidden="true"></div>
 
       {none && <NoCodes />}
+      {allFound && <AllFoundCard found={found} onDex={onDex} onClose={onClose} />}
 
       {camMessage && (
         <div className="scan__nocam">

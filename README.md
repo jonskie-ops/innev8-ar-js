@@ -84,6 +84,8 @@ from it.
    from glowing blocks into a 3D QR code (`ar/qr3d.ts`, its pattern generated from the code's value)
    and stays put as you move. Tapping it collects it and the catch card opens. Without a camera
    (walking can't be read) every code is near. Progress is saved on the device (localStorage).
+4. Opening the scanner with every code already found shows the **Hunt complete** pop-up
+   (`AllFoundCard.tsx`): their points, and the way to their collection and prizes, or to close it.
 
 ## Where the codes are (GPS)
 
