@@ -8,6 +8,7 @@ import { useHunt } from "@/lib/huntStore";
 import { locationAllowed, useLocation } from "@/lib/location";
 import { useProgress } from "@/lib/store";
 import { CheckIcon, CloseIcon, LocateIcon, LockIcon, PinIcon, ScanIcon } from "./icons";
+import { NoCodes } from "./NoCodes";
 import { QrTile } from "./QrTile";
 import { VenueMap } from "./VenueMap";
 
@@ -66,6 +67,13 @@ export function MapView({
   const [chosen, setChosen] = useState<string | null>(null);
   const nearest = fix ? [...places].sort((a, b) => metresBetween(fix, a) - metresBetween(fix, b))[0]?.id : null;
   const place = places.find((p) => p.id === (sel?.location ?? chosen ?? nearest)) ?? places[0];
+  // Every location off in the admin: no map to show
+  if (!place)
+    return (
+      <div className="mapview">
+        <NoCodes />
+      </div>
+    );
   const plan = planOf(place);
   const here = hunt.stations.filter((s) => s.location === place.id);
 
@@ -86,6 +94,8 @@ export function MapView({
         locating={locating}
         onLocate={random ? undefined : () => setLocating(!locating)}
       />
+
+      {!hunt.stations.length && <NoCodes />}
 
       {places.length > 1 && (
         <div className="mapview__places" role="group" aria-label="Locations">

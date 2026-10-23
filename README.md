@@ -122,7 +122,9 @@ drawn by the admin into the same plan units (`planOf` in `lib/geo.ts`: north up,
 (180, 260), its width across 300 units) and shown in the same holographic style. With more than
 one location on, chips above the map switch between them; the map opens on the player's nearest
 (or a picked code's). Before the admin's locations update, `places` is null: Leyte Academic Center
-only, as before.
+only, as before. With every location off (or no code on), the map and the scanner say there are no QR codes
+right now (`NoCodes`), and the codes come back by themselves once one is on. The codes are listed
+location by location, then by number (`inOrder`): each location's numbers start at 1.
 
 **Random spots** (the admin's Event page) is for trying the scanner away from the venue: a few codes
 go at random spots around the player each time the scanner opens, as before. In test mode, if the

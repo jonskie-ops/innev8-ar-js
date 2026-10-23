@@ -702,6 +702,43 @@ code {
   border-color: rgba(79, 157, 255, 0.7);
   color: #9cc4ff;
 }
+/* No QR codes in the game right now (every location off in the admin): on the map and in the scanner */
+.nocodes {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(340px, calc(100% - 32px));
+  padding: 22px 18px 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(2, 6, 17, 0.88);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+.nocodes svg {
+  width: 36px;
+  height: 36px;
+  fill: none;
+  stroke: var(--cyan);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nocodes b {
+  font-size: 17px;
+  color: #fff;
+}
+.nocodes p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
 /* Location on, but no dot on the map: why (or how far the codes are) */
 .mapview__where {
   position: absolute;

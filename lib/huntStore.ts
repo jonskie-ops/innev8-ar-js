@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { DEFAULT_PLACE, toLatLng, type Place } from "./geo";
-import { BUILT_IN, RADIUS, RARITIES, TASKS, type Hunt, type Prize, type PrizeRule, type Station, type Task, type Zone } from "./hunt";
+import { BUILT_IN, inOrder, RADIUS, RARITIES, TASKS, type Hunt, type Prize, type PrizeRule, type Station, type Task, type Zone } from "./hunt";
 import { firstSponsor, type Sponsor } from "./sponsors";
 
 /**
@@ -184,17 +184,15 @@ function parseHunt(v: unknown): Hunt | null {
   const s = h?.settings as Partial<Hunt["settings"]> | undefined;
   if (!h || !Array.isArray(h.stations) || !Array.isArray(h.zones) || !Array.isArray(h.prizes) || !s) return null;
   if (!num(s.start) || !num(s.end) || typeof s.testMode !== "boolean" || !str(s.claimPlace)) return null;
+  // (before the locations update, or saved before it: Leyte Academic Center only)
+  const places = Array.isArray(h.places) ? h.places.map(parsePlace).filter(isSome) : null;
   return {
-    stations: h.stations
-      .map(parseStation)
-      .filter(isSome)
-      .sort((a, b) => a.num - b.num),
+    stations: h.stations.map(parseStation).filter(isSome).sort(inOrder(places)),
     zones: h.zones.map(parseZone).filter(isSome),
     prizes: h.prizes.map(parsePrize).filter(isSome),
     // (a copy from before the sponsor logos update, or saved before it: the game's own)
     sponsors: Array.isArray(h.sponsors) ? h.sponsors.map(parseSponsor).filter(isSome) : null,
-    // (before the locations update, or saved before it: Leyte Academic Center only)
-    places: Array.isArray(h.places) ? h.places.map(parsePlace).filter(isSome) : null,
+    places,
     settings: { start: s.start, end: s.end, testMode: s.testMode, claimPlace: s.claimPlace, randomSpots: s.randomSpots === true },
   };
 }

@@ -78,7 +78,9 @@ function introTalk(p: Progress): Talk {
       { text: `Welcome back, ${name}!`, say: "Welcome back!" },
       {
         text:
-          TOTAL > 0 && found === TOTAL
+          TOTAL === 0
+            ? "No QR codes are out right now. Check back soon!"
+            : found === TOTAL
             ? hunt.prizes.length
               ? `You found all ${TOTAL} QR codes! Your prize is waiting in Codes.`
               : `You found all ${TOTAL}! Amazing!`

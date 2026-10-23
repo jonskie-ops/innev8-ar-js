@@ -1,6 +1,6 @@
 import { cacheLife } from "next/cache";
 import { DEFAULT_PLACE, planOf, type Place } from "./geo";
-import { RADIUS, TASKS, type Hunt, type Prize, type PrizeRule, type Rarity, type Station, type Task, type Zone } from "./hunt";
+import { inOrder, RADIUS, TASKS, type Hunt, type Prize, type PrizeRule, type Rarity, type Station, type Task, type Zone } from "./hunt";
 import { builtInBadge, firstSponsor, type Sponsor } from "./sponsors";
 
 /** A number from a database row (Postgres numbers can arrive as strings), or null. */
@@ -34,7 +34,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
     const [codes, zones, prizes, settings, sponsors, places] = await Promise.all([
       // Every column: a database without the networking, sponsors or GPS update yet simply has no task,
       // sponsor or GPS spot (nor random spots, in the settings)
-      get<CodeRow>("codes?select=*&live=eq.true&order=num"),
+      get<CodeRow>("codes?select=*&live=eq.true&order=num"), // (then location by location, below)
       get<ZoneRow>("zones?select=id,name,label_x,label_y&order=sort,name"),
       get<PrizeRow>("prizes?select=id,name,description,photo_path,rule,rule_value&live=eq.true&order=sort,created_at"),
       get<SettingsRow>("settings?select=*&limit=1"),
@@ -90,7 +90,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             ...spot,
             radius: radius !== null && radius > 0 ? radius : RADIUS,
           };
-        }),
+        }).sort(inOrder(places)),
         zones: zones.map(
           (z): Zone => ({
             id: z.id,

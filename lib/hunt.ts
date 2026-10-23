@@ -264,6 +264,15 @@ export function stationFromPayload(hunt: Hunt, payload: string): Station | undef
 }
 
 /**
+ * Codes in order: location by location (as the organisers ordered them), then by number. Each
+ * location's numbers start at 1, so Leyte Academic Center's #01 and another location's #01 both exist.
+ */
+export function inOrder(places: { id: string }[] | null) {
+  const at = new Map((places ?? []).map((p, i) => [p.id, i]));
+  return (a: Station, b: Station) => (at.get(a.location) ?? at.size) - (at.get(b.location) ?? at.size) || a.num - b.num;
+}
+
+/**
  * A player's standing. Codes an organiser has since turned off (or deleted) stay theirs: `kept`, from
  * `known` (every code this phone has seen), still counting toward points and prizes. `count`/`total`
  * are the codes that are on now.
@@ -274,7 +283,7 @@ export function standing(hunt: Hunt, known: Record<string, Station>, found: Reco
   const kept = Object.keys(found)
     .filter((id) => !on.has(id) && known[id])
     .map((id) => known[id])
-    .sort((a, b) => a.num - b.num);
+    .sort(inOrder(hunt.places));
   const mine = [...live, ...kept];
   return {
     count: live.length,
