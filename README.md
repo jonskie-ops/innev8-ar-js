@@ -113,7 +113,8 @@ that spot: 10 m unless the organisers set more (indoors, where GPS is rougher).
   is while it's off screen. Phone GPS is good to a few metres, so up close a code is where the player
   is looking around, not to the metre: the meter shows a pulse, not an arrow, once in range.
 - **The map:** the player's dot with a ring for how sure the GPS is (on by itself once the site is
-  allowed the location; the button by the zoom), each code's range ring when selected, and its
+  allowed the location; the button by the zoom) with a cone for which way they're facing (the compass,
+`lib/heading.ts`: the back camera held up, the top of the phone lying flat), each code's range ring when selected, and its
   distance on its card.
 
 **Locations:** the hunt can be played somewhere other than Leyte Academic Center. The organisers add

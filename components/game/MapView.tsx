@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { pad2 } from "@/lib/dom";
 import { howFar, LAC_PLACE, metresBetween, planOf, type Place } from "@/lib/geo";
 import { RARITY_LABEL, TASK_TEXT, unlocked, zoneName, type Station } from "@/lib/hunt";
+import { useHeading } from "@/lib/heading";
 import { useHunt } from "@/lib/huntStore";
 import { locationAllowed, useLocation } from "@/lib/location";
+import { askMotion } from "@/lib/motion";
 import { useProgress } from "@/lib/store";
 import { CheckIcon, CloseIcon, LocateIcon, LockIcon, PinIcon, ScanIcon } from "./icons";
 import { NoCodes } from "./NoCodes";
@@ -60,6 +62,8 @@ export function MapView({
   }, []);
   const loc = useLocation(locating && !random);
   const fix = locating && !random ? loc.fix : null;
+  // Which way they're facing (the compass), for the cone on their dot: while they're on the map
+  const heading = useHeading(Boolean(fix));
 
   // Which location's map: the picked code's, else the one picked above the map, else the nearest
   // to the player, else the first
@@ -78,6 +82,18 @@ export function MapView({
   const here = hunt.stations.filter((s) => s.location === place.id);
 
   const at = fix ? plan.toPlan(fix.lat, fix.lng) : null;
+  // The cone's direction on this map: a point 10 m ahead of them, as the map draws it (the hand-drawn
+  // plan isn't north-up, so this is worked out rather than assumed)
+  const dir =
+    fix && at && heading !== null
+      ? (() => {
+          const ahead = plan.toPlan(
+            fix.lat + (Math.cos((heading * Math.PI) / 180) * 10) / 111_320,
+            fix.lng + (Math.sin((heading * Math.PI) / 180) * 10) / (111_320 * Math.cos((fix.lat * Math.PI) / 180)),
+          );
+          return (Math.atan2(ahead.y - at.y, ahead.x - at.x) * 180) / Math.PI;
+        })()
+      : null;
   const fromVenue = fix && here[0] ? Math.min(...here.map((s) => metresBetween(fix, s))) : 0;
   const onMap = at && fromVenue < OFF_MAP + (plan.hand ? 0 : place.width / 2);
   const away = fix && sel ? metresBetween(fix, sel) : null;
@@ -90,9 +106,16 @@ export function MapView({
         found={found}
         focus={focus}
         onFocus={onFocus}
-        me={onMap && at ? { ...at, r: Math.min(fix!.accuracy, RING_MAX) * plan.perM } : null}
+        me={onMap && at ? { ...at, r: Math.min(fix!.accuracy, RING_MAX) * plan.perM, dir } : null}
         locating={locating}
-        onLocate={random ? undefined : () => setLocating(!locating)}
+        onLocate={
+          random
+            ? undefined
+            : () => {
+                if (!locating) askMotion(); // iPhone: the compass (for the facing cone) needs this tap
+                setLocating(!locating);
+              }
+        }
       />
 
       {!hunt.stations.length && <NoCodes />}

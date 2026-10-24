@@ -692,6 +692,10 @@ code {
   transform-origin: center;
   animation: v3d-pulse 2s ease-out infinite;
 }
+/* Which way they're facing (the compass) */
+.v3d__me-cone {
+  transition: d 0.25s ease-out;
+}
 .v3d__me-dot {
   fill: #2f7bff;
   stroke: #fff;

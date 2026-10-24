@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useId, type CSSProperties } from "react";
 import { planOf, type Place } from "@/lib/geo";
 import { useHunt } from "@/lib/huntStore";
 import { VENUE } from "@/lib/venue";
@@ -74,6 +74,19 @@ const LANDMARKS = [{ name: "Parking", x: 112, y: 452, tone: "dim" }] as const;
  * the +/− buttons zoom (HOME.z–MAX_ZOOM); drag pans. `me`: the player, as a dot with a ring for how
  * sure the GPS is (plan units); the locate button turns that on and off.
  */
+/** The facing cone: how far it reaches (map units) and half its width (degrees). */
+const CONE = { length: 46, half: 28 };
+
+/** A wedge from (x, y) toward `dir` degrees (0 = right, 90 = down: the map's own angles). */
+function conePath(x: number, y: number, dir: number) {
+  const r = Math.PI / 180;
+  const a = (dir - CONE.half) * r;
+  const b = (dir + CONE.half) * r;
+  const L = CONE.length;
+  const f = (n: number) => n.toFixed(2);
+  return `M${f(x)} ${f(y)}L${f(x + L * Math.cos(a))} ${f(y + L * Math.sin(a))}A${L} ${L} 0 0 1 ${f(x + L * Math.cos(b))} ${f(y + L * Math.sin(b))}Z`;
+}
+
 export function VenueMap({
   place,
   found,
@@ -88,7 +101,8 @@ export function VenueMap({
   found: Record<string, number>;
   focus: string | null;
   onFocus: (id: string) => void;
-  me?: { x: number; y: number; r: number } | null;
+  /** The player: where, how sure (r), and which way they face on the map (dir, degrees; null: not known) */
+  me?: { x: number; y: number; r: number; dir?: number | null } | null;
   locating?: boolean;
   onLocate?: () => void;
 }) {
@@ -104,6 +118,7 @@ export function VenueMap({
   const tags = plan.hand ? hunt.zones.filter((z) => z.label) : [];
   const landmarks = plan.hand ? LANDMARKS : [];
   const osm = plan.hand ? null : place.outlines;
+  const coneId = `cone${useId().replace(/[^\w-]/g, "")}`; // (a plain id: it goes in url(#…))
 
   return (
     <div
@@ -176,6 +191,19 @@ export function VenueMap({
               {me && (
                 <g className="v3d__me">
                   <circle className="v3d__me-acc" cx={me.x} cy={me.y} r={me.r} />
+                  {/* Which way they're facing: a beam from the dot, fading out */}
+                  {me.dir != null && (
+                    <>
+                      <defs>
+                        <radialGradient id={coneId} gradientUnits="userSpaceOnUse" cx={me.x} cy={me.y} r={CONE.length}>
+                          <stop offset="0" stopColor="#9cc8ff" stopOpacity="0.95" />
+                          <stop offset="0.55" stopColor="#4f9dff" stopOpacity="0.45" />
+                          <stop offset="1" stopColor="#4f9dff" stopOpacity="0" />
+                        </radialGradient>
+                      </defs>
+                      <path className="v3d__me-cone" d={conePath(me.x, me.y, me.dir)} fill={`url(#${coneId})`} />
+                    </>
+                  )}
                   <circle className="v3d__me-pulse" cx={me.x} cy={me.y} r="7" />
                   <circle className="v3d__me-dot" cx={me.x} cy={me.y} r="4.4" />
                 </g>
