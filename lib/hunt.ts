@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 /**
  * The hunt: its QR codes, zones, prizes and the event's dates and test mode. The organisers set them
  * in the admin (INNEV8-AR-ADMIN), and the game reads them through /api/hunt (lib/huntStore.ts keeps
@@ -199,7 +201,18 @@ export type Prize = {
   /** "code": the code to find (null if it's been deleted), and the organisers' sentence ("Get the Symphonics QR") */
   code?: string | null;
   text?: string | null;
+  /** How its photo sits in its box (the admin's photo fit and size): filling it or whole, zoomed (%) */
+  photoFit?: "cover" | "contain";
+  photoZoom?: number;
 };
+
+/** A prize photo's look, as the style on its <img> (its box crops what spills over); nothing by default. */
+export function photoStyle(p: Pick<Prize, "photoFit" | "photoZoom">): CSSProperties | undefined {
+  const fit = p.photoFit ?? "cover";
+  const zoom = p.photoZoom ?? 100;
+  if (fit === "cover" && zoom === 100) return undefined;
+  return { objectFit: fit, transform: zoom === 100 ? undefined : `scale(${zoom / 100})` };
+}
 
 export type Settings = {
   /** When the hunt opens and closes (ms since epoch). */

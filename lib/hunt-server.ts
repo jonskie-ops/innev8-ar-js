@@ -109,6 +109,9 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             value: p.rule_value,
             code: p.rule_code ?? null,
             text: p.rule_text ?? null,
+            // (before the photo look update: filling the box, as it is)
+            photoFit: p.photo_fit === "contain" ? "contain" : "cover",
+            photoZoom: typeof p.photo_zoom === "number" ? p.photo_zoom : 100,
           }),
         ),
         places:
@@ -181,6 +184,8 @@ type PrizeRow = {
   rule_value: number | null;
   rule_code?: string | null;
   rule_text?: string | null;
+  photo_fit?: string;
+  photo_zoom?: number;
 };
 /** Leyte Academic Center still on its hand-drawn plan (its map not drawn from OpenStreetMap yet) */
 const handDrawn = (p: PlaceRow) => p.id === DEFAULT_PLACE && p.outlines === null;

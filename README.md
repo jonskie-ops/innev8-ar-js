@@ -222,6 +222,8 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
   database, and the admin's Prize desk gives each prize once (see the admin's README, "Prize desk").
   The player's progress screen still comes from the phone. A prize can be for one chosen code
   (`rule: "code"`, with `code` and the organisers' sentence in `text`): finding it wins it.
+  A prize photo is shown as the admin set it: filling its box or whole, and zoomed (`photoFit`,
+  `photoZoom`; `photoStyle` in `lib/hunt.ts`).
 - **QR code values ship in the app's JavaScript**, so a determined player could find them. Server-side
   validation fixes this too.
 

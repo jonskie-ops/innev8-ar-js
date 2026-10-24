@@ -3,7 +3,7 @@
 
 import { useState, type CSSProperties } from "react";
 import { pad2 } from "@/lib/dom";
-import { prizeProgress, RARITY_LABEL, ruleText, standing, TASK_TEXT, unlocked, zoneName, type Prize, type Station } from "@/lib/hunt";
+import { photoStyle, prizeProgress, RARITY_LABEL, ruleText, standing, TASK_TEXT, unlocked, zoneName, type Prize, type Station } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
 import { useProgress } from "@/lib/store";
 import { CheckIcon, DexIcon, GiftIcon, ListIcon, LockIcon, MapIcon, ScanIcon } from "./icons";
@@ -168,7 +168,7 @@ export function DexView({
               return (
                 <li key={pr.id} className={won ? "card quest prizeq is-done" : "card quest prizeq"}>
                   <span className="prizeq__photo" aria-hidden="true">
-                    {pr.photo ? <img src={pr.photo} alt="" loading="lazy" decoding="async" /> : <GiftIcon />}
+                    {pr.photo ? <img src={pr.photo} alt="" loading="lazy" decoding="async" style={photoStyle(pr)} /> : <GiftIcon />}
                   </span>
                   <div className="quest__body">
                     <h2>{pr.name}</h2>

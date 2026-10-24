@@ -165,6 +165,8 @@ function parsePrize(v: unknown): Prize | null {
     value: num(p.value) ? p.value : null,
     code: str(p.code) ? p.code : null,
     text: str(p.text) ? p.text : null,
+    photoFit: p.photoFit === "contain" ? "contain" : "cover",
+    photoZoom: num(p.photoZoom) && p.photoZoom >= 50 && p.photoZoom <= 200 ? p.photoZoom : 100,
   };
 }
 function parsePlace(v: unknown): Place | null {

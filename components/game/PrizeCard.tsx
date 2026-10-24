@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- the prize's photo, from the organisers' storage */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Prize } from "@/lib/hunt";
+import { photoStyle, type Prize } from "@/lib/hunt";
 import { claimText, loadPrizes, prizeQrText, refusedFinds, type PrizeClaim } from "@/lib/hunter";
 import type { Progress } from "@/lib/store";
 import { qrPath } from "./HunterQr";
@@ -62,7 +62,7 @@ export function PrizeCard({
         <p className="catch__eyebrow">{claim?.claimed ? "Your prize" : "You won a prize"}</p>
         <div className="prize__photo">
           {prize.photo ? (
-            <img src={prize.photo} alt="" width={480} height={300} decoding="async" />
+            <img src={prize.photo} alt="" width={480} height={300} decoding="async" style={photoStyle(prize)} />
           ) : (
             <span className="prize__photo-ph" aria-hidden="true">
               <GiftIcon />
