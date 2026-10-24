@@ -743,6 +743,13 @@ code {
   line-height: 1.5;
   color: var(--muted);
 }
+/* On the Codes and Quests tabs: in place of the list, under the title */
+.nocodes--inline {
+  position: static;
+  z-index: auto;
+  margin: 28px auto 0;
+  transform: none;
+}
 /* Location on, but no dot on the map: why (or how far the codes are) */
 .mapview__where {
   position: absolute;

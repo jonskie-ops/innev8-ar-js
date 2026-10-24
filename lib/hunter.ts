@@ -13,6 +13,8 @@ const KEY = "i8ar-hunter-v1";
 const MET_KEY = "i8ar-met-v1";
 const FINDS_KEY = "i8ar-finds-v1";
 const REFUSED_KEY = "i8ar-refused-v1";
+/** Deleted profiles' hunter IDs, until the database has them removed too (no signal at the time) */
+const LEAVE_KEY = "i8ar-leave-v1";
 
 const load = <T,>(key: string): T | null => {
   try {
@@ -45,9 +47,40 @@ export const savedHunter = () => {
   return h && typeof h.id === "string" && typeof h.tag === "string" && typeof h.secret === "string" ? h : null;
 };
 
+/**
+ * The profile deleted: its hunter ID removed from the database too (gone from the organisers' Hunters
+ * list), with any deleted earlier without a signal. Those that can't go yet are kept, and tried again
+ * each time the game opens (`current` false: only those, never the hunter this phone has now); `false`
+ * then.
+ */
+export async function leaveHunter(current = true): Promise<boolean> {
+  const waiting = load<Hunter[]>(LEAVE_KEY);
+  const now = current ? savedHunter() : null;
+  const all = [...(Array.isArray(waiting) ? waiting : []), ...(now ? [now] : [])].filter(
+    (h, i, list) => list.findIndex((x) => x.id === h.id) === i,
+  );
+  if (!all.length) return true;
+  save(LEAVE_KEY, all);
+  const left: Hunter[] = [];
+  for (const h of all) {
+    const r = await call<{ ok: true }>("leave", { id: h.id, secret: h.secret });
+    // Removed, or already gone (an organiser deleted it); otherwise, next time
+    if ("error" in r && r.error !== "unknown") left.push(h);
+  }
+  if (left.length) save(LEAVE_KEY, left);
+  else
+    try {
+      localStorage.removeItem(LEAVE_KEY);
+    } catch {}
+  return !left.length;
+}
+
+let leaving: Promise<boolean> | null = null;
 let joining: Promise<Hunter | null> | null = null;
 /** This phone's hunter ID: the saved one, or a new one (online), or null (no signal yet). */
 export function joinHunter(name: string, province: string): Promise<Hunter | null> {
+  // A profile deleted without a signal: removed from the database now
+  if (load(LEAVE_KEY) && !leaving) leaving = leaveHunter(false).finally(() => (leaving = null));
   const have = savedHunter();
   if (have) return Promise.resolve(have);
   if (!name.trim() || !province) return Promise.resolve(null);

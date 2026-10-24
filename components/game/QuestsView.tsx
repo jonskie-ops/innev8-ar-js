@@ -3,6 +3,7 @@
 import type { Hunt } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
 import { I8Mark } from "./I8Mark";
+import { NoCodes } from "./NoCodes";
 
 type Quest = { id: string; title: string; desc: string; have: number; need: number };
 
@@ -51,6 +52,19 @@ export function QuestsView({ found }: { found: Record<string, number> }) {
   const { hunt } = useHunt();
   const quests = questsFor(hunt, found);
   const done = quests.filter((q) => q.have >= q.need).length;
+
+  // No QR codes on: no quests either
+  if (!hunt.stations.length)
+    return (
+      <div className="quests">
+        <div className="view-head">
+          <h1>Quests</h1>
+        </div>
+        <NoCodes title="There are no quests right now" inline>
+          Quests come with the QR codes: they show up here as soon as the hunt is on again.
+        </NoCodes>
+      </div>
+    );
 
   return (
     <div className="quests">

@@ -171,7 +171,8 @@ export function Game({ phase }: { phase: Phase }) {
             {count}/{total}
           </span>
         </div>
-        {hunt.settings.testMode && <span className="hud__test">Test mode</span>}
+        {/* (the admin's test mode, shown to players as Live) */}
+        {hunt.settings.testMode && <span className="hud__test">Live</span>}
       </header>
 
       <div className={tab === "map" ? "game__body game__body--map" : "game__body"}>

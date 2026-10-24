@@ -7,6 +7,7 @@ import { photoStyle, prizeProgress, RARITY_LABEL, ruleText, standing, TASK_TEXT,
 import { useHunt } from "@/lib/huntStore";
 import { useProgress } from "@/lib/store";
 import { CheckIcon, DexIcon, GiftIcon, ListIcon, LockIcon, MapIcon, ScanIcon } from "./icons";
+import { NoCodes } from "./NoCodes";
 import { QrTile } from "./QrTile";
 
 const timeFmt = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -39,6 +40,16 @@ export function DexView({
   const off = new Set(kept.map((s) => s.id));
   const sel = codes.find((s) => s.id === open);
   const toggle = (id: string) => setOpen(open === id ? null : id);
+
+  if (!hunt.stations.length)
+    return (
+      <div className="dex">
+        <div className="view-head view-head--center">
+          <h1>QR Collection</h1>
+        </div>
+        <NoCodes inline />
+      </div>
+    );
 
   return (
     <div className="dex">

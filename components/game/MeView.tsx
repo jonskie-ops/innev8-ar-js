@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { levelOf, standing } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
-import { forgetHunter, myHunter, savedHunter, savedMeetings, updateHunter, type Hunter, type Met } from "@/lib/hunter";
+import { forgetHunter, leaveHunter, myHunter, savedHunter, savedMeetings, updateHunter, type Hunter, type Met } from "@/lib/hunter";
 import { PROVINCES } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
@@ -79,7 +79,11 @@ export function MeView({
     setEditing(true);
   };
   const canSave = draftName.trim() !== "";
-  const wipe = () => {
+  const [wiping, setWiping] = useState(false);
+  const wipe = async () => {
+    setWiping(true);
+    // Off the organisers' Hunters list too (a few seconds at most: without a signal it's done next time)
+    await Promise.race([leaveHunter(), new Promise((r) => setTimeout(r, 4000))]);
     progress.clear();
     forgetHunter(); // a new hunter next time
     location.replace("/"); // a fresh start: splash, mascot, sign-up
@@ -333,15 +337,15 @@ export function MeView({
             </span>
             <h2 id="pconfirm-title">Delete your profile?</h2>
             <p id="pconfirm-text" className="pdelete__text">
-              This erases your name, province and {lost} from this phone, and the hunt starts over from the
-              beginning.
+              This erases your name, province and {lost} from this phone and from the hunt, with any prize
+              you haven&apos;t collected yet, and the hunt starts over from the beginning.
             </p>
             <div className="pedit__actions">
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setConfirming(false)} autoFocus>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setConfirming(false)} disabled={wiping} autoFocus>
                 Cancel
               </button>
-              <button type="button" className="btn btn--danger btn--sm" onClick={wipe}>
-                Delete
+              <button type="button" className="btn btn--danger btn--sm" onClick={wipe} disabled={wiping} aria-busy={wiping || undefined}>
+                {wiping ? "Deleting…" : "Delete"}
               </button>
             </div>
           </div>
