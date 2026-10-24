@@ -198,7 +198,6 @@ export function Game({ phase }: { phase: Phase }) {
             found={p.found}
             points={points}
             phase={phase}
-            onCountdown={() => setOverlay("countdown")}
             onOpenCodes={() => setTab("dex")}
           />
         )}

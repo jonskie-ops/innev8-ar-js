@@ -327,7 +327,7 @@ export function ScanView({
       <div ref={hostRef} className="scan__stage" />
       <div className="scan__shade" aria-hidden="true"></div>
 
-      {none && <NoCodes />}
+      {none && <NoCodes boxed />}
       {allFound && <AllFoundCard found={found} onDex={onDex} onClose={onClose} />}
 
       {camMessage && (

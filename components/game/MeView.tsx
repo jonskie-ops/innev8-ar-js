@@ -31,8 +31,10 @@ const timeFmt = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric
 /**
  * My Profile: a summit cover (bridge photo, event title, INNEV8 mark), then a sheet with the player's
  * avatar, name, province and stats, an About section that turns into the edit form, a strip of their
- * QR codes, how to get the app (until it's installed) and the side countdown before the event. Beside the avatar: edit (opens the form) and
- * delete, which wipes the player from this device and starts the app over from the splash (asks first).
+ * QR codes (while there are any in the hunt), how to get the app (until it's installed) and the side
+ * countdown before the event (the HUD's clock opens the full one). Beside the avatar: edit (opens the
+ * form) and delete, which wipes the player from this device and starts the app over from the splash
+ * (asks first).
  */
 export function MeView({
   name,
@@ -40,7 +42,6 @@ export function MeView({
   found,
   points,
   phase,
-  onCountdown,
   onOpenCodes,
 }: {
   name: string;
@@ -48,7 +49,6 @@ export function MeView({
   found: Record<string, number>;
   points: number;
   phase: Phase;
-  onCountdown: () => void;
   onOpenCodes: () => void;
 }) {
   const [aboutOpen, setAboutOpen] = useState(true);
@@ -273,25 +273,27 @@ export function MeView({
           )}
         </section>
 
-        <section className="psec">
-          <div className="psec__head">
-            <span className="psec__icon">
-              <DexIcon />
-            </span>
-            <span className="psec__title">QR Codes</span>
-            <span className="psec__meta">
-              {count}/{total}
-            </span>
-          </div>
-          <div className="psec__strip">
-            {strip.map((s, i) => (
-              <QrTile key={s.id} station={s} state={found[s.id] ? "found" : "locked"} size="sm" i={i} />
-            ))}
-            <button type="button" className="psec__more" aria-label="Open your QR collection" onClick={onOpenCodes}>
-              <ArrowRightIcon />
-            </button>
-          </div>
-        </section>
+        {hunt.stations.length > 0 && (
+          <section className="psec">
+            <div className="psec__head">
+              <span className="psec__icon">
+                <DexIcon />
+              </span>
+              <span className="psec__title">QR Codes</span>
+              <span className="psec__meta">
+                {count}/{total}
+              </span>
+            </div>
+            <div className="psec__strip">
+              {strip.map((s, i) => (
+                <QrTile key={s.id} station={s} state={found[s.id] ? "found" : "locked"} size="sm" i={i} />
+              ))}
+              <button type="button" className="psec__more" aria-label="Open your QR collection" onClick={onOpenCodes}>
+                <ArrowRightIcon />
+              </button>
+            </div>
+          </section>
+        )}
 
         <HunterSection name={name} province={province} />
 
@@ -315,9 +317,6 @@ export function MeView({
                   screen until the summit starts.
                 </p>
               )}
-              <button type="button" className="btn btn--ghost btn--sm" onClick={onCountdown}>
-                Open countdown screen
-              </button>
             </div>
           </section>
         )}

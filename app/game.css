@@ -717,12 +717,16 @@ code {
   gap: 8px;
   width: min(340px, calc(100% - 32px));
   padding: 22px 18px 18px;
+  text-align: center;
+  text-shadow: 0 1px 8px rgba(2, 6, 17, 0.9); /* (plain, over the map) */
+  transform: translate(-50%, -50%);
+}
+/* In the scanner, over the camera: on a box, to be read */
+.nocodes--boxed {
   border: 1px solid var(--line);
   border-radius: 18px;
   background: rgba(2, 6, 17, 0.88);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-  text-align: center;
-  transform: translate(-50%, -50%);
 }
 .nocodes svg {
   width: 36px;
@@ -743,11 +747,21 @@ code {
   line-height: 1.5;
   color: var(--muted);
 }
-/* On the Codes and Quests tabs: in place of the list, under the title */
+/* On the Codes and Quests tabs: in place of the list, plain (no box), in the middle of the space under
+   the title */
+.dex:has(> .nocodes--inline),
+.quests:has(> .nocodes--inline) {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
 .nocodes--inline {
   position: static;
   z-index: auto;
-  margin: 28px auto 0;
+  flex: 1;
+  align-content: center;
+  margin: 0 auto;
+  padding-block: 24px;
   transform: none;
 }
 /* Location on, but no dot on the map: why (or how far the codes are) */
