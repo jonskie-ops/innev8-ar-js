@@ -485,55 +485,6 @@ p {
   }
 }
 
-/* Get the app: how to add the game to the home screen (Me page) */
-.getapp {
-  display: grid;
-  justify-items: start;
-  gap: 12px;
-}
-.getapp__lead,
-.getapp__steps {
-  margin: 0;
-  font-size: 13.5px;
-  line-height: 1.55;
-  color: var(--muted);
-}
-.getapp b {
-  color: var(--text);
-}
-.getapp__steps {
-  display: grid;
-  gap: 6px;
-  padding-left: 20px;
-}
-.getapp__key {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 8px;
-  border: 1px solid rgba(18, 191, 234, 0.4);
-  border-radius: 8px;
-  background: rgba(18, 191, 234, 0.1);
-  color: var(--cyan);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.getapp__note {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--faint);
-}
-.getapp svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 /* "A new version is ready": at the top, over everything but the splash */
 .appupdate {
   position: fixed;

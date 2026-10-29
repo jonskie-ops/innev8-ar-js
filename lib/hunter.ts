@@ -13,8 +13,6 @@ const KEY = "i8ar-hunter-v1";
 const MET_KEY = "i8ar-met-v1";
 const FINDS_KEY = "i8ar-finds-v1";
 const REFUSED_KEY = "i8ar-refused-v1";
-/** Deleted profiles' hunter IDs, until the database has them removed too (no signal at the time) */
-const LEAVE_KEY = "i8ar-leave-v1";
 
 const load = <T,>(key: string): T | null => {
   try {
@@ -47,48 +45,41 @@ export const savedHunter = () => {
   return h && typeof h.id === "string" && typeof h.tag === "string" && typeof h.secret === "string" ? h : null;
 };
 
-/**
- * The profile deleted: its hunter ID removed from the database too (gone from the organisers' Hunters
- * list), with any deleted earlier without a signal. Those that can't go yet are kept, and tried again
- * each time the game opens (`current` false: only those, never the hunter this phone has now); `false`
- * then.
- */
-export async function leaveHunter(current = true): Promise<boolean> {
-  const waiting = load<Hunter[]>(LEAVE_KEY);
-  const now = current ? savedHunter() : null;
-  const all = [...(Array.isArray(waiting) ? waiting : []), ...(now ? [now] : [])].filter(
-    (h, i, list) => list.findIndex((x) => x.id === h.id) === i,
-  );
-  if (!all.length) return true;
-  save(LEAVE_KEY, all);
-  const left: Hunter[] = [];
-  for (const h of all) {
-    const r = await call<{ ok: true }>("leave", { id: h.id, secret: h.secret });
-    // Removed, or already gone (an organiser deleted it); otherwise, next time
-    if ("error" in r && r.error !== "unknown") left.push(h);
-  }
-  if (left.length) save(LEAVE_KEY, left);
-  else
-    try {
-      localStorage.removeItem(LEAVE_KEY);
-    } catch {}
-  return !left.length;
-}
-
-let leaving: Promise<boolean> | null = null;
 let joining: Promise<Hunter | null> | null = null;
-/** This phone's hunter ID: the saved one, or a new one (online), or null (no signal yet). */
+let remembered = false;
+/**
+ * This phone's hunter ID: the saved one, or the one kept in its cookie (the game's storage cleared:
+ * the same hunter again, with the name and province given now), or a new one (online), or null (no
+ * signal yet).
+ */
 export function joinHunter(name: string, province: string): Promise<Hunter | null> {
-  // A profile deleted without a signal: removed from the database now
-  if (load(LEAVE_KEY) && !leaving) leaving = leaveHunter(false).finally(() => (leaving = null));
   const have = savedHunter();
-  if (have) return Promise.resolve(have);
+  if (have) {
+    // Kept in the cookie too (once each time the game opens)
+    if (!remembered) {
+      remembered = true;
+      void call("remember", { ...have });
+    }
+    return Promise.resolve(have);
+  }
   if (!name.trim() || !province) return Promise.resolve(null);
-  joining ??= call<Hunter>("join", { name: name.trim().slice(0, 20), province }).then((r) => {
-    joining = null;
+  joining ??= (async () => {
+    const kept = await call<Hunter>("remembered", {});
+    if (!("error" in kept)) {
+      save(KEY, kept);
+      remembered = true;
+      updateHunter(name, province);
+      return kept;
+    }
+    // (no signal: not a new hunter yet, it may be kept)
+    if (kept.error !== "none") return null;
+    const r = await call<Hunter>("join", { name: name.trim().slice(0, 20), province });
     if ("error" in r) return null;
     save(KEY, r);
+    remembered = true;
     return r;
+  })().finally(() => {
+    joining = null;
   });
   return joining;
 }
@@ -99,7 +90,7 @@ export function updateHunter(name: string, province: string) {
   if (h) void call("update", { id: h.id, secret: h.secret, name: name.trim().slice(0, 20), province });
 }
 
-/** A fresh start (the profile deleted): a new hunter next time. */
+/** A fresh start (the organisers deleted this hunter): a new hunter next time. */
 export function forgetHunter() {
   try {
     localStorage.removeItem(KEY);

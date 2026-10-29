@@ -6,7 +6,7 @@ import clips from "./voice-clips.json";
 /**
  * The game as an app: public/sw.js keeps it on the phone (production builds only, on a secure
  * page), so it opens and plays on weak or no signal; this side starts it, says what to keep, and
- * passes on "there's a new version" and "this can be installed".
+ * passes on "there's a new version".
  */
 
 /** What the game uses beyond the page's first load (sprites, clips…): kept on the phone ahead of time. */
@@ -72,51 +72,4 @@ export function startApp() {
         }, ms);
     })
     .catch(() => {}); // no worker: it's a website as before
-}
-
-// ---- Installing
-type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
-let deferred: InstallPrompt | null = null;
-let installedNow = false;
-if (typeof window !== "undefined") {
-  addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault(); // our own Install button offers it
-    deferred = e as InstallPrompt;
-    emit();
-  });
-  addEventListener("appinstalled", () => {
-    deferred = null;
-    installedNow = true;
-    emit();
-  });
-}
-
-/**
- * How this phone can install the app: "installed" (opened from the home screen), "ready" (the
- * browser can install it from our button: Android, desktop Chrome), "ios" (Share, then Add to Home
- * Screen), "inapp" (Messenger, Facebook…: open it in the browser first) or "manual" (from the
- * browser's own menu).
- */
-export type InstallWay = "installed" | "ready" | "ios" | "inapp" | "manual";
-function installWay(): InstallWay {
-  const standalone =
-    matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone;
-  if (installedNow || standalone) return "installed";
-  if (deferred) return "ready";
-  const ua = navigator.userAgent;
-  if (/FBAN|FBAV|FB_IAB|FBIOS|Instagram|Messenger|Line\/|MicroMessenger/i.test(ua)) return "inapp";
-  if (/iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) return "ios";
-  return "manual";
-}
-export const useInstallWay = () => useSyncExternalStore<InstallWay | null>(subscribe, installWay, () => null);
-
-/** Shows the browser's install prompt (when the way is "ready"). */
-export async function installApp() {
-  const d = deferred;
-  if (!d) return;
-  deferred = null;
-  emit();
-  await d.prompt();
-  if ((await d.userChoice).outcome === "accepted") installedNow = true;
-  emit();
 }

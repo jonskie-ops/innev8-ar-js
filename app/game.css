@@ -1781,10 +1781,6 @@ code {
 .psheet__act:active {
   transform: scale(0.94);
 }
-.psheet__act--danger {
-  border-color: rgba(255, 107, 107, 0.5);
-  color: #ff6b6b;
-}
 .psheet__act:focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: 2px;
@@ -1793,40 +1789,6 @@ code {
   .psheet__act:hover {
     background: rgba(18, 191, 234, 0.14);
   }
-  .psheet__act--danger:hover {
-    background: rgba(255, 107, 107, 0.14);
-  }
-}
-/* Delete your profile? (from the button by the avatar) */
-.pconfirm {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  width: min(340px, 100%);
-  padding: 24px 22px 20px;
-  border: 1px solid rgba(255, 107, 107, 0.4);
-  border-radius: 22px;
-  background: rgba(var(--shade-rgb), 0.97);
-  box-shadow: 0 30px 80px -20px rgba(255, 107, 107, 0.45);
-  text-align: center;
-  animation: pop-in 0.4s var(--ease-out);
-}
-.pconfirm h2 {
-  margin: 0;
-  font: 800 19px/1.2 var(--font-h);
-}
-.pconfirm__icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-}
-.pconfirm__icon svg {
-  width: 20px;
-  height: 20px;
-}
-.pconfirm .pedit__actions {
-  justify-content: center;
-  width: 100%;
 }
 .psheet__name {
   margin: 12px 0 0;

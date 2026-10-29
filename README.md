@@ -149,7 +149,7 @@ opens the scanner.
   says what to do on each step (name, province, Let's Go). Then he tours the menu: right after
   sign-up he explains the hunt and the Map, and the first time each menu button is tapped (Codes,
   Quests, Me, Scan) he explains what's there; for Scan, the scanner opens when he's done. Each part
-  is explained once (saved with the profile; deleting the profile starts the tour over). Players who
+  is explained once (saved with the profile). Players who
   signed up before the tour existed don't get it.
 - **Returning players:** welcome back, and how many codes they've found.
 - **Help any time:** a small Qufoo waits above the menu's right end, moving gently; tap him and he
@@ -197,11 +197,8 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
 - **Installing:** `app/manifest.ts` (name, colours, icons) and, for iPhone, `appleWebApp` in
   `app/layout.tsx`. The icons in `public/assets/img/app/` come from the INNEV8 icon:
   `node scripts/app-icons.mjs` (the maskable ones fill the square for Android's icon shapes).
-  "Get the app" on the Me page (`components/GetApp.tsx`) shows how, for
-  this phone: an Install button (Android, desktop Chrome), Share then Add to Home Screen (iPhone),
-  or "open it in your browser first" (Messenger and other in-app browsers). Gone once installed.
-  On iPhone the installed app keeps its own data, apart from Safari's, so the guide says to add
-  it before collecting codes.
+  Installing is the browser's own (its install offer or menu; Share then Add to Home Screen on
+  iPhone). On iPhone the installed app keeps its own data, apart from Safari's.
 - **Weak or no signal:** `public/sw.js`, a service worker started by `lib/pwa.ts` (production
   builds on a secure page only: not in `next dev`, not over `http://192.168.x.x`). It keeps the
   page, the app's code, pictures, fonts, sprites and all of Qufoo's clips on the phone (~5 MB),
@@ -237,7 +234,7 @@ The game installs to the home screen and opens like an app ("QR Hunt"), full scr
 | `lib/voice.ts`, `lib/voice-clips.json`, `scripts/voice.mjs` | Qufoo's voice clips and the script that adds them |
 | `lib/sponsors.ts`, `lib/sponsors.json`, `scripts/sponsors.mjs` | The QR codes' sponsors (the organisers', or the 8 the game came with) and the script that made the first badges |
 | `app/assets/sponsors/up/[file]/route.ts` | A sponsor badge uploaded in the admin, at the game's own address |
-| `app/manifest.ts`, `public/sw.js`, `lib/pwa.ts`, `components/GetApp.tsx`, `components/AppUpdate.tsx`, `scripts/app-icons.mjs` | The installable app: manifest, offline service worker, install guide, update banner, icons |
+| `app/manifest.ts`, `public/sw.js`, `lib/pwa.ts`, `components/AppUpdate.tsx`, `scripts/app-icons.mjs` | The installable app: manifest, offline service worker, update banner, icons |
 | `components/CountdownSection.tsx`, `Countdown.tsx` | "The countdown is on." section and clock |
 | `components/game/Game.tsx` | Game shell: HUD, tabs, overlays |
 | `components/game/MapView.tsx` | Venue map (home) |

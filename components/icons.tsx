@@ -9,26 +9,6 @@ export function CalendarAddIcon() {
   );
 }
 
-/** A phone: the installed app. */
-export function PhoneIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
-      <path d="M10.5 18.5h3" />
-    </svg>
-  );
-}
-
-/** iPhone's Share button: a box with an arrow out of the top. */
-export function ShareIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 3.5v11M8 7.5l4-4 4 4" />
-      <path d="M8.5 10.5H7A1.5 1.5 0 0 0 5.5 12v7A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5h-1.5" />
-    </svg>
-  );
-}
-
 export function DownloadIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
