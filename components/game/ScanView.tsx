@@ -456,7 +456,8 @@ export function ScanView({
               </p>
             )}
           </div>
-          {!failed && phase !== "loading" && <ScanQufoo say={qufooSays} />}
+          {/* No QR codes in the game: nothing for him to smell, so he stays away */}
+          {!failed && !none && phase !== "loading" && <ScanQufoo say={qufooSays} />}
         </div>
         <div className="scan__codes" role="group" aria-label="Choose a QR code to look for">
           {stations.map((s, i) => {

@@ -4,11 +4,10 @@
 import { useEffect, useRef, useState } from "react";
 import { levelOf, standing } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
-import { forgetHunter, leaveHunter, myHunter, savedHunter, savedMeetings, updateHunter, type Hunter, type Met } from "@/lib/hunter";
+import { myHunter, savedHunter, savedMeetings, updateHunter, type Hunter, type Met } from "@/lib/hunter";
 import { PROVINCES } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
-import { GetApp } from "../GetApp";
 import { HunterQr } from "./HunterQr";
 import { I8Mark } from "./I8Mark";
 import {
@@ -20,7 +19,6 @@ import {
   InfoIcon,
   PencilIcon,
   PinIcon,
-  TrashIcon,
   UsersIcon,
 } from "./icons";
 import { MiniClock } from "./MiniClock";
@@ -31,10 +29,9 @@ const timeFmt = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric
 /**
  * My Profile: a summit cover (bridge photo, event title, INNEV8 mark), then a sheet with the player's
  * avatar, name, province and stats, an About section that turns into the edit form, a strip of their
- * QR codes (while there are any in the hunt), how to get the app (until it's installed) and the side
+ * QR codes (while there are any in the hunt) and the side
  * countdown before the event (the HUD's clock opens the full one). Beside the avatar: edit (opens the
- * form) and delete, which wipes the player from this device and starts the app over from the splash
- * (asks first).
+ * form). Players can't delete themselves: only the organisers can, in the admin.
  */
 export function MeView({
   name,
@@ -53,7 +50,6 @@ export function MeView({
 }) {
   const [aboutOpen, setAboutOpen] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [confirming, setConfirming] = useState(false); // the delete button by the avatar asks first
   const [draftName, setDraftName] = useState(name);
   const [draftProvince, setDraftProvince] = useState(province);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -79,25 +75,6 @@ export function MeView({
     setEditing(true);
   };
   const canSave = draftName.trim() !== "";
-  const [wiping, setWiping] = useState(false);
-  const wipe = async () => {
-    setWiping(true);
-    // Off the organisers' Hunters list too (a few seconds at most: without a signal it's done next time)
-    await Promise.race([leaveHunter(), new Promise((r) => setTimeout(r, 4000))]);
-    progress.clear();
-    forgetHunter(); // a new hunter next time
-    location.replace("/"); // a fresh start: splash, mascot, sign-up
-  };
-  const lost = count ? `your ${count} QR code${count > 1 ? "s" : ""}` : "progress";
-
-  useEffect(() => {
-    if (!confirming) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setConfirming(false);
-    };
-    addEventListener("keydown", onKey);
-    return () => removeEventListener("keydown", onKey);
-  }, [confirming]);
 
   return (
     <div className="me">
@@ -153,14 +130,6 @@ export function MeView({
           <div className="psheet__actions">
             <button type="button" className="icon-btn psheet__act" onClick={startEdit} aria-label="Edit profile">
               <PencilIcon />
-            </button>
-            <button
-              type="button"
-              className="icon-btn psheet__act psheet__act--danger"
-              onClick={() => setConfirming(true)}
-              aria-label="Delete profile"
-            >
-              <TrashIcon />
             </button>
           </div>
         </div>
@@ -297,8 +266,6 @@ export function MeView({
 
         <HunterSection name={name} province={province} />
 
-        <GetApp />
-
         {phase === "before" && (
           <section className="psec">
             <div className="psec__head">
@@ -322,34 +289,6 @@ export function MeView({
         )}
       </div>
 
-      {confirming && (
-        <div
-          className="modal"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="pconfirm-title"
-          aria-describedby="pconfirm-text"
-        >
-          <div className="pconfirm">
-            <span className="psec__icon psec__icon--danger pconfirm__icon">
-              <TrashIcon />
-            </span>
-            <h2 id="pconfirm-title">Delete your profile?</h2>
-            <p id="pconfirm-text" className="pdelete__text">
-              This erases your name, province and {lost} from this phone and from the hunt, with any prize
-              you haven&apos;t collected yet, and the hunt starts over from the beginning.
-            </p>
-            <div className="pedit__actions">
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setConfirming(false)} disabled={wiping} autoFocus>
-                Cancel
-              </button>
-              <button type="button" className="btn btn--danger btn--sm" onClick={wipe} disabled={wiping} aria-busy={wiping || undefined}>
-                {wiping ? "Deleting…" : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
