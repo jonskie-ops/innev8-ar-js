@@ -3413,3 +3413,189 @@ button.psec__head {
   color: var(--muted);
   font-size: 11px;
 }
+
+/* The leaderboard: the trophy chip in the top bar (the player's rank), and the list it opens */
+.chip--rank {
+  color: var(--gold);
+  border-color: rgba(214, 181, 109, 0.45);
+}
+.chip--rank:hover {
+  border-color: var(--gold);
+}
+.board {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 12px;
+  width: min(420px, 100%);
+  max-height: calc(100dvh - 40px);
+  padding: 22px 16px 16px;
+  border: 1px solid rgba(214, 181, 109, 0.4);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(214, 181, 109, 0.2), transparent 55%),
+    rgba(var(--shade-rgb), 0.97);
+  box-shadow: 0 30px 80px -20px rgba(214, 181, 109, 0.4);
+  animation: pop-in 0.5s var(--ease-out);
+}
+.board__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+.board__head {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 0 36px;
+  text-align: center;
+}
+.board__icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: rgba(214, 181, 109, 0.14);
+  box-shadow: 0 0 24px rgba(214, 181, 109, 0.35);
+  color: var(--gold);
+}
+.board__icon svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.board__eyebrow {
+  font: 800 11px/1 var(--font-h);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.board h2 {
+  font: 800 22px/1.2 var(--font-h);
+}
+.board__sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+.board__list {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
+  margin: 0;
+  padding: 0 2px;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+}
+.board__row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 9px 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(var(--deep-rgb), 0.6);
+}
+.board__rank {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(140, 190, 255, 0.1);
+  font: 800 13px/1 var(--font-h);
+  color: var(--muted);
+}
+/* The first three: gold, silver and bronze */
+.board__row.is-1 .board__rank {
+  background: var(--grad-gold);
+  color: #241a05;
+  box-shadow: 0 0 14px rgba(214, 181, 109, 0.55);
+}
+.board__row.is-2 .board__rank {
+  background: linear-gradient(135deg, #f1f5fb, #9eabbd);
+  color: #18202c;
+}
+.board__row.is-3 .board__rank {
+  background: linear-gradient(135deg, #f0b483, #a8643a);
+  color: #2a1406;
+}
+.board__who {
+  display: grid;
+  min-width: 0;
+  line-height: 1.3;
+}
+.board__who b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  font: 700 14px/1.3 var(--font-h);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.board__who small {
+  overflow: hidden;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.board__you {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--cyan);
+  color: #031027;
+  font: 800 9.5px/1.3 var(--font-h);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.board__score {
+  display: grid;
+  justify-items: end;
+  line-height: 1.25;
+}
+.board__score b {
+  font: 800 15px/1.2 var(--font-h);
+}
+.board__score small {
+  font: 500 10.5px/1.3 var(--font-m);
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* This player's own row */
+.board__row.is-me {
+  border-color: rgba(18, 191, 234, 0.65);
+  background: rgba(18, 191, 234, 0.14);
+  box-shadow: 0 0 18px -6px rgba(18, 191, 234, 0.7);
+}
+/* Their place further down: under the list, after a dotted line */
+.board__list--you {
+  overflow: visible;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+.board__empty,
+.board__note {
+  font-size: 13px;
+  text-align: center;
+  color: var(--muted);
+}
+.board__empty {
+  padding: 18px 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .board {
+    animation: none;
+  }
+}

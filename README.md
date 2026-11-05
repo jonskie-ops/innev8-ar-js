@@ -87,6 +87,24 @@ from it.
 4. Opening the scanner with every code already found shows the **Hunt complete** pop-up
    (`AllFoundCard.tsx`): their points, and the way to their collection and prizes, or to close it.
 
+## Leaderboard
+
+A trophy chip in the top bar shows the player's rank (`#12`; just the trophy until a find of theirs
+counts), once the hunt is on or in test mode. Tapping it opens **Top hunters**
+(`components/game/Leaderboard.tsx`): the top 20, each with their rank (gold, silver and bronze for
+the first three), name and province as they signed up, points and codes found. The player's own row
+is lit up, and when they're further down it shows under the list.
+
+- It comes from the database's confirmed finds (the ones the prize desk goes by), through
+  `/api/hunter` ("board") and the admin's `leaderboard` function
+  (`supabase/migrations/20261105030000_leaderboard.sql` in INNEV8-AR-ADMIN, run in the SQL Editor).
+  Until that's run, the game simply has no trophy chip.
+- Ranked by points, then codes found, then whoever got there first. Test mode as everywhere: once
+  it's off, finds made in test mode don't count.
+- It's fetched again every 45 s while the game is on screen, after the player finds a code, and when
+  it's opened. Without a signal it keeps the last one.
+- When the hunt ends it freezes: **Final results**, and finds sent after the end don't change it.
+
 ## Where the codes are (GPS)
 
 Each code has a real spot on the ground: its GPS spot, set in the admin (best on site, from an

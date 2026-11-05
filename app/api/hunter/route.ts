@@ -1,7 +1,7 @@
 /**
  * Hunters: joining, renaming, meeting and listing who they've met (networking), the codes they
- * collect and the prizes they've won (the prize desk). Passed to the admin's database functions
- * (supabase/migrations/…_networking.sql and …_prize_desk.sql in INNEV8-AR-ADMIN), which check each
+ * collect, the prizes they've won (the prize desk) and the leaderboard. Passed to the admin's database
+ * functions (supabase/migrations/…_networking.sql, …_prize_desk.sql and …_leaderboard.sql in INNEV8-AR-ADMIN), which check each
  * phone's secret; the public key itself can't read or write any hunter data.
  *
  * The phone's hunter is also kept in a cookie (only this route gets it, page scripts can't read it),
@@ -16,6 +16,8 @@ const CALLS = {
   meetings: { fn: "hunter_meetings", args: ["id", "secret"] },
   find: { fn: "hunter_find", args: ["id", "secret", "code", "lat", "lng", "accuracy"] },
   prizes: { fn: "hunter_prizes", args: ["id", "secret"] },
+  // The top hunters, and this one's rank (…_leaderboard.sql)
+  board: { fn: "leaderboard", args: ["id", "secret"] },
 } as const;
 /** Where the phone was: a number, or null (no location) */
 const NUMBERS = new Set(["lat", "lng", "accuracy"]);

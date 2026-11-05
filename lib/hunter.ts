@@ -160,6 +160,24 @@ export async function loadPrizes(name: string, province: string): Promise<PrizeC
   return "prizes" in r && Array.isArray(r.prizes) ? r.prizes : null;
 }
 
+/** A row of the leaderboard: their rank, name and province, points and codes found (`me`: this player). */
+export type BoardRow = { rank: number; name: string; province: string; score: number; codes: number; me: boolean };
+/**
+ * The leaderboard, from the database's confirmed finds: the top 20, how many are on it, this
+ * player's own place (null until a find of theirs counts), and `final` once the hunt has ended.
+ */
+export type Board = { final: boolean; players: number; top: BoardRow[]; me: { rank: number; score: number; codes: number } | null };
+
+/** The leaderboard (this player's finds sent first): null without a signal, a hunter ID, or the database's leaderboard update. */
+export async function loadBoard(name: string, province: string): Promise<Board | null> {
+  const { hunter } = await myHunter(name, province);
+  if (!hunter) return null;
+  await sendFinds();
+  const r = await call<Board>("board", { id: hunter.id, secret: hunter.secret });
+  deletedHunter(r);
+  return "top" in r && Array.isArray(r.top) ? r : null;
+}
+
 /** What a prize card's QR says (the desk reads the code from it). */
 export const prizeQrText = (code: string) => `INNEV8-PRIZE:${code}`;
 /** A claim code as the player reads it: "K7M2-P9QX" */
