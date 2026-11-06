@@ -154,9 +154,6 @@ code {
 .chip--btn:hover {
   border-color: var(--cyan);
 }
-.chip--clock {
-  color: var(--accent);
-}
 .chip__px {
   width: 10px;
   height: 10px;
@@ -2927,22 +2924,6 @@ button.psec__head {
   font: 800 22px/1 var(--font-m);
   letter-spacing: 0.14em;
   color: rgb(var(--rc));
-}
-
-/* Countdown, opened from the side (test mode / before the event) */
-.countdown-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 120;
-  overflow-y: auto;
-  background: var(--bg);
-  animation: fade-in 0.3s ease-out;
-}
-.countdown-overlay__close {
-  position: fixed;
-  top: max(14px, env(safe-area-inset-top));
-  right: 16px;
-  z-index: 2;
 }
 
 /* Toast */

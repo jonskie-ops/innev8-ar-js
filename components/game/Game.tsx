@@ -8,16 +8,14 @@ import { lastFix } from "@/lib/location";
 import { getHunt, useHunt } from "@/lib/huntStore";
 import { askMotion } from "@/lib/motion";
 import { progress, useProgress } from "@/lib/store";
-import { CountdownSection } from "../CountdownSection";
 import { explainMenu, QufooDock, type TourStop } from "../Mascot";
 import type { Phase } from "../Countdown";
 import { CatchCard } from "./CatchCard";
 import { DexView } from "./DexView";
 import { LeaderboardSheet, RankChip, useBoard } from "./Leaderboard";
-import { ClockIcon, CloseIcon, DexIcon, MapIcon, QuestIcon, ScanIcon, UserIcon } from "./icons";
+import { DexIcon, MapIcon, QuestIcon, ScanIcon, UserIcon } from "./icons";
 import { MapView } from "./MapView";
 import { MeView } from "./MeView";
-import { MiniClock } from "./MiniClock";
 import { Onboarding } from "./Onboarding";
 import { PrizeCard } from "./PrizeCard";
 import { QuestsView } from "./QuestsView";
@@ -45,7 +43,7 @@ function useToast() {
   return [toast, show] as const;
 }
 
-/** The hunt: HUD, the four tabs, the scanner and the catch/prize/countdown/leaderboard overlays. */
+/** The hunt: HUD, the four tabs, the scanner and the catch/prize/leaderboard overlays. */
 export function Game({ phase }: { phase: Phase }) {
   const p = useProgress();
   const [tab, setTab] = useState<Tab>("map");
@@ -54,7 +52,7 @@ export function Game({ phase }: { phase: Phase }) {
   const [scan, setScan] = useState<{ target?: Station } | null>(null);
   // Just collected: the code, and a prize that catch won (if it did)
   const [caught, setCaught] = useState<{ station: Station; won: Prize | null } | null>(null);
-  const [overlay, setOverlay] = useState<"countdown" | "board" | { prize: Prize } | null>(null);
+  const [overlay, setOverlay] = useState<"board" | { prize: Prize } | null>(null);
   const closeOverlay = useCallback(() => setOverlay(null), []);
   // A code's extra task, open
   const [task, setTask] = useState<Station | null>(null);
@@ -196,17 +194,6 @@ export function Game({ phase }: { phase: Phase }) {
           </span>
         </div>
         <div className="hud__chips">
-          {phase === "before" && (
-            <button
-              type="button"
-              className="chip chip--btn chip--clock"
-              onClick={() => setOverlay("countdown")}
-              aria-label="Open the countdown"
-            >
-              <ClockIcon />
-              <MiniClock />
-            </button>
-          )}
           {/* Their rank: once the hunt is on (or in test mode), and the leaderboard has arrived */}
           {board && (phase !== "before" || hunt.settings.testMode) && <RankChip board={board} onOpen={() => setOverlay("board")} />}
           <span className="chip chip--count" aria-label={`${count} of ${total} QR codes found`}>
@@ -324,20 +311,6 @@ export function Game({ phase }: { phase: Phase }) {
 
       {typeof overlay === "object" && overlay !== null && (
         <PrizeCard prize={overlay.prize} progress={p} claimPlace={hunt.settings.claimPlace} onClose={() => setOverlay(null)} />
-      )}
-
-      {overlay === "countdown" && (
-        <div className="countdown-overlay" role="dialog" aria-modal="true" aria-label="Countdown">
-          <button
-            type="button"
-            className="icon-btn countdown-overlay__close"
-            onClick={() => setOverlay(null)}
-            aria-label="Close countdown"
-          >
-            <CloseIcon />
-          </button>
-          <CountdownSection />
-        </div>
       )}
 
       {toast && (
