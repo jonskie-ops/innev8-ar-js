@@ -49,6 +49,8 @@ export type Near = {
   bearing: number;
   /** Metres. */
   distance: number;
+  /** How sure the GPS is (± metres). */
+  accuracy: number;
 };
 
 export type ArStage = {
@@ -100,6 +102,9 @@ const NEAR_OUT = 1.3; // "near" starts when a code in reach is on screen and end
 // this much (direction, distance) while it's off screen. Real tracking (WebXR) is trusted more.
 const GPS_XR_FAR = 8;
 const DRIFT = { xr: { turn: 60, metres: 6 }, view: { turn: 35, metres: 4 } };
+// GPS mode without WebXR: a code farther off in the view than the GPS allows comes this much closer
+// a second (units), so it's always reachable even when walking can't be read from the picture
+const CLOSE_IN = 0.6;
 // The compass: how much each new reading moves the estimate of north (quicker at first)
 const NORTH_FIRST = 0.3;
 const NORTH_EASE = 0.05;
@@ -454,6 +459,28 @@ export async function createArStage(
   const gn = new THREE.Vector3();
   const gpsDistance = (m: number) =>
     xr ? THREE.MathUtils.clamp(m, XR_DIST, GPS_XR_FAR) : THREE.MathUtils.clamp(m, DIST, camOn ? FAR : DIST);
+  /**
+   * How far away a code goes, going by the GPS. Without WebXR: no farther than the GPS can be sure of
+   * (a reading of 8 m ±10 m can't tell from right there), so standing at the spot always puts it in
+   * reach. With WebXR the phone's own tracking is real, so the GPS distance as it is.
+   */
+  const gpsTarget = (n: Near) => gpsDistance(xr ? n.distance : n.distance - n.accuracy);
+  /**
+   * Without WebXR, walking up to a code is read from the camera picture, which fails on a plain wall,
+   * in a dim hall or with a crowd passing: the code would stay "walk closer" for good. The GPS backs
+   * it up: a code farther off than gpsTarget comes closer, gently and along the line to it (so it
+   * stays where it is on screen, just bigger). Never pushed back: the picture may have read the walk.
+   */
+  const closeIn = (dt: number) => {
+    for (const c of codes) {
+      const n = nearby.find((x) => x.station.id === c.station.id);
+      if (c.got || !n) continue;
+      gv.copy(c.spot.position).sub(cam.position);
+      const d = gv.length();
+      const step = Math.min(d - gpsTarget(n), CLOSE_IN * dt);
+      if (step > 0) c.spot.position.addScaledVector(gv, -step / d);
+    }
+  };
   const onScreen = (c: Hidden) => {
     gv.copy(c.spot.position).applyMatrix4(cam.matrixWorldInverse);
     gn.copy(c.spot.position).project(cam);
@@ -477,7 +504,7 @@ export async function createArStage(
     const limits = xr ? DRIFT.xr : DRIFT.view;
     for (const n of nearby) {
       const yaw = knowNorth() ? northYaw! - deg(n.bearing) : null;
-      const d = gpsDistance(n.distance);
+      const d = gpsTarget(n);
       const had = codes.find((c) => c.station.id === n.station.id);
       if (had) {
         if (yaw === null || onScreen(had)) continue; // no better idea, or the player's looking at it
@@ -533,29 +560,79 @@ export async function createArStage(
   let camOn = false;
   const zoom = createZoomTracker(renderer, video);
   let disposed = false;
-  const startCamera = async () => {
+  let starting = false; // a start is under way (not two at once)
+  let spread = false; // the codes were spread out once the camera first came on
+  let retryTimer = 0;
+  /**
+   * Starts the camera. `retries`: starting it again after it stopped (the screen was locked, another
+   * app took it), when it may still be busy for a moment: tried again a little later before giving up.
+   */
+  const startCamera = async (retries = 0) => {
+    if (stream || starting || disposed) return;
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       ev.onCamera(window.isSecureContext ? "unavailable" : "insecure");
       return;
     }
+    starting = true;
     ev.onCamera("starting");
     try {
       const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
-      if (disposed) return s.getTracks().forEach((t) => t.stop());
+      if (disposed || xr) return s.getTracks().forEach((t) => t.stop());
+      // Hidden while it was starting: not left running in the background; started again on return
+      if (document.visibilityState === "hidden") {
+        s.getTracks().forEach((t) => t.stop());
+        resumeCamera = true;
+        return;
+      }
       stream = s;
       video.srcObject = s;
+      // The phone ends the camera itself (another app took it, the system stopped it): start it again
+      s.getVideoTracks()[0]?.addEventListener("ended", () => {
+        if (disposed || xr || stream !== s) return;
+        stopCamera();
+        if (document.visibilityState === "hidden") resumeCamera = true;
+        else void startCamera(2);
+      });
       await video.play().catch(() => {});
       camOn = true;
       showVirtual(false);
       ev.onCamera("on");
-      if (phase === "searching" && !active) place(); // walking can be read now: spread them out
+      // Walking can be read now: spread them out (only the first time; started again, they stay put)
+      if (!spread && phase === "searching" && !active) place();
+      spread = true;
     } catch (e) {
-      ev.onCamera(e instanceof DOMException && e.name === "NotAllowedError" ? "denied" : "unavailable");
+      const denied = e instanceof DOMException && e.name === "NotAllowedError";
+      if (!denied && retries > 0 && !disposed) {
+        retryTimer = window.setTimeout(() => void startCamera(retries - 1), 800);
+        return;
+      }
+      ev.onCamera(denied ? "denied" : "unavailable");
+    } finally {
+      starting = false;
     }
   };
+
+  // ---- Leaving and coming back (screen locked, another app on top): the camera is stopped while the
+  // game is hidden (phones stop or freeze it anyway, and it saves the battery) and started again when
+  // it's back. (WebXR: the phone ends the session itself; the scanner closes, see onEnd.)
+  let resumeCamera = false;
+  const onVisibility = () => {
+    if (disposed || xr) return;
+    if (document.visibilityState === "hidden") {
+      clearTimeout(retryTimer);
+      if (stream || starting) resumeCamera = true;
+      stopCamera();
+      return;
+    }
+    if (resumeCamera) {
+      resumeCamera = false;
+      void startCamera(2);
+    } else if (stream && video.paused) void video.play().catch(() => {}); // still on, but the picture stopped
+  };
+  document.addEventListener("visibilitychange", onVisibility);
 
   const stopCamera = () => {
     camOn = false;
@@ -735,6 +812,7 @@ export async function createArStage(
         cam.updateMatrixWorld();
       }
     }
+    if (gpsMode && !xr && phase === "searching" && !active) closeIn(dt);
 
     if (phase === "searching") {
       // Is a hidden code held inside the scan frame, close enough to reveal (or too far: walk up to
@@ -923,6 +1001,8 @@ export async function createArStage(
     },
     dispose: () => {
       disposed = true;
+      clearTimeout(retryTimer);
+      document.removeEventListener("visibilitychange", onVisibility);
       void session?.end().catch(() => {});
       overlay.removeEventListener("beforexrselect", noXrSelect);
       renderer.setAnimationLoop(null);

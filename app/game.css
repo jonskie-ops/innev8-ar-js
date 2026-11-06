@@ -2310,6 +2310,11 @@ button.psec__head {
   justify-content: space-between;
   padding: max(14px, env(safe-area-inset-top)) 16px 0;
 }
+/* Close and sound on/off, side by side at the left */
+.scan__btns {
+  display: flex;
+  gap: 10px;
+}
 /* Test mode: which movement tracking the scanner is using */
 .chip--mode {
   height: 26px;

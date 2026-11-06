@@ -20,6 +20,12 @@ export type Progress = {
    * hunter counts for one code only.
    */
   tasks?: Record<string, { with: string; at: number }>;
+  /**
+   * QR codes collected while the hunt was in test mode. They don't count once it's off (the
+   * database keeps test finds apart), so they're cleared then and can be found again for real.
+   * Missing for saves from before this was kept: those codes were all collected in test mode.
+   */
+  testFinds?: string[];
 };
 
 const KEY = "i8ar-progress-v1";
@@ -90,16 +96,45 @@ export const progress = {
     if (p.tasks?.[codeId]) return;
     write({ ...p, tasks: { ...p.tasks, [codeId]: { with: withId, at: Date.now() } } });
   },
-  /** Returns false if that QR code was already collected. */
-  collect(id: string) {
+  /** Returns false if that QR code was already collected. `test`: the hunt is in test mode. */
+  collect(id: string, test = false) {
     const p = read();
     if (p.found[id]) return false;
-    write({ ...p, found: { ...p.found, [id]: Date.now() } });
+    const testFinds = test ? [...(p.testFinds ?? Object.keys(p.found)), id] : p.testFinds;
+    write({ ...p, found: { ...p.found, [id]: Date.now() }, ...(testFinds ? { testFinds } : {}) });
     return true;
+  },
+  /**
+   * Keeps the collection in step with test mode. On: older saves' codes are noted as test finds.
+   * Off: the test finds are cleared (for older saves, the codes collected before the hunt opened at
+   * `start`), and their ids are returned.
+   */
+  syncTestMode(testMode: boolean, start: number): string[] {
+    const p = read();
+    if (testMode) {
+      if (p.testFinds === undefined) write({ ...p, testFinds: Object.keys(p.found) });
+      return [];
+    }
+    const test = new Set(p.testFinds ?? Object.keys(p.found).filter((id) => p.found[id]! < start));
+    const dropped = Object.keys(p.found).filter((id) => test.has(id));
+    if (!dropped.length && p.testFinds?.length === 0) return [];
+    const found = Object.fromEntries(Object.entries(p.found).filter(([id]) => !test.has(id)));
+    write({ ...p, found, testFinds: [] });
+    return dropped;
+  },
+  /**
+   * Codes the database didn't take (the hunt wasn't open, or the code had been turned off): no
+   * longer collected, so they can be found again.
+   */
+  uncollect(ids: string[]) {
+    const p = read();
+    if (!ids.some((id) => p.found[id])) return;
+    const found = Object.fromEntries(Object.entries(p.found).filter(([id]) => !ids.includes(id)));
+    write({ ...p, found, ...(p.testFinds ? { testFinds: p.testFinds.filter((id) => !ids.includes(id)) } : {}) });
   },
   /** Clears collected QR codes; the player keeps their name. */
   reset() {
-    write({ ...read(), found: {} });
+    write({ ...read(), found: {}, testFinds: [] });
   },
   /** Forgets the player entirely, back to the first-launch name prompt (test tool). */
   clear() {

@@ -1,3 +1,4 @@
+import { isMuted, onMuted } from "./sound";
 import { voiceFor } from "./voice";
 
 /** The game's background music ("BG Game.mp3", added with scripts/voice.mjs). */
@@ -23,6 +24,7 @@ function level() {
   const down = sounding.size > 0;
   g.cancelScheduledValues(t);
   g.setValueAtTime(g.value, t);
+  if (isMuted()) return g.setTargetAtTime(0, t, 0.08); // sound off (lib/sound.ts)
   g.setTargetAtTime(down ? DUCKED : LEVEL, down ? t : t + 0.4, down ? 0.08 : 0.4);
 }
 
@@ -70,6 +72,7 @@ if (typeof window !== "undefined") {
     if (document.hidden) void ctx.suspend();
     else void ctx.resume().catch(() => {});
   });
+  onMuted(level);
 }
 
 /** Lowers the music while `el` plays: Qufoo's voice, the collect sound. */

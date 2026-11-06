@@ -8,8 +8,12 @@
 // - Pictures, fonts, sprites and voice clips (/assets/): the saved copy, refreshed in the background
 //   (so a re-recorded clip comes through). Audio is answered in the byte ranges the player asks for.
 // - "warm" messages from the page list everything it uses, to save up front.
+// - The game's own answers (/api/: the hunt, the hunter) are never saved or answered from here: they
+//   must be live, and with no signal the game keeps the last hunt it got itself.
 
 const CACHE = "i8ar-v1";
+/** The game's live answers: always the network, never the saved copies. */
+const isApi = (url) => url.pathname.startsWith("/api/");
 const NAV_WAIT_MS = 3500;
 
 self.addEventListener("install", (e) => {
@@ -21,6 +25,9 @@ self.addEventListener("activate", (e) => {
   e.waitUntil(
     (async () => {
       for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
+      // Copies of /api/ answers saved by earlier versions (an old hunt could come back offline): gone
+      const cache = await caches.open(CACHE);
+      for (const req of await cache.keys()) if (isApi(new URL(req.url))) await cache.delete(req);
       await self.clients.claim();
     })(),
   );
@@ -30,7 +37,7 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin || url.pathname === "/sw.js") return;
+  if (url.origin !== self.location.origin || url.pathname === "/sw.js" || isApi(url)) return;
   if (req.mode === "navigate") e.respondWith(page(e));
   else if (url.pathname.startsWith("/_next/static/")) e.respondWith(code(req));
   else if (url.pathname.startsWith("/assets/")) e.respondWith(asset(e, req, url));
@@ -120,7 +127,7 @@ self.addEventListener("message", (e) => {
       const cache = await caches.open(CACHE);
       for (const u of e.data.urls) {
         const url = new URL(u, self.location.origin);
-        if (url.origin !== self.location.origin) continue;
+        if (url.origin !== self.location.origin || isApi(url)) continue;
         const key = url.pathname.startsWith("/_next/static/") ? url.href : url.origin + url.pathname;
         if (await cache.match(key)) continue;
         try {

@@ -1,5 +1,8 @@
 "use client";
 
+import { within } from "./net";
+import { progress } from "./store";
+
 /**
  * The player as a hunter (networking): an ID from the admin's database, with a 5-letter tag and a
  * secret only this phone knows. Their hunter QR carries the tag and a PIN worked out from the secret
@@ -27,14 +30,18 @@ const save = (key: string, v: unknown) => {
   } catch {}
 };
 
+// (an answer that doesn't come within the time limit counts as no signal: lib/net.ts)
 const call = async <T,>(action: string, args: Record<string, string | number | null>): Promise<T | { error: string }> => {
   try {
-    const res = await fetch("/api/hunter", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action, ...args }),
+    return await within(async (signal) => {
+      const res = await fetch("/api/hunter", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, ...args }),
+        signal,
+      });
+      return (await res.json()) as T | { error: string };
     });
-    return (await res.json()) as T | { error: string };
   } catch {
     return { error: "offline" };
   }
@@ -114,6 +121,16 @@ export const refusedFinds = () => {
   return Array.isArray(r) ? r : [];
 };
 
+/**
+ * Codes collected in test mode, cleared now it's off: not sent any more (the database would count a
+ * find that reaches it after the switch as a real one), and no longer listed as not counted.
+ */
+export function dropFinds(codes: string[]) {
+  if (!codes.length) return;
+  save(FINDS_KEY, queued().filter((f) => !codes.includes(f.code)));
+  save(REFUSED_KEY, refusedFinds().filter((c) => !codes.includes(c)));
+}
+
 /** A code collected: sent now, or kept until there's a signal (and a hunter ID). */
 export function queueFind(code: string, at: { lat: number; lng: number; accuracy: number } | null) {
   save(FINDS_KEY, [
@@ -123,12 +140,29 @@ export function queueFind(code: string, at: { lat: number; lng: number; accuracy
   void sendFinds();
 }
 
+/**
+ * Finds the database didn't take and handed back: "closed" (the hunt wasn't open: outside its hours,
+ * or the phone's clock is off) or "code" (the organisers turned that code off).
+ */
+export type ReturnedFinds = { codes: string[]; why: "closed" | "code" };
+const returnedListeners = new Set<(r: ReturnedFinds) => void>();
+/** Told when finds are handed back (the game says why); returns the way to stop listening. */
+export function onFindsReturned(listener: (r: ReturnedFinds) => void) {
+  returnedListeners.add(listener);
+  return () => void returnedListeners.delete(listener);
+}
+
 let sending: Promise<void> | null = null;
-/** Sends the codes waiting to go, one by one; any that can't go yet (no signal) wait for next time. */
+/**
+ * Sends the codes waiting to go, one by one; any that can't go yet (no signal) wait for next time.
+ * A code the database won't take while the hunt isn't open, or one turned off, goes back to "not
+ * found" so it can be collected again.
+ */
 export function sendFinds(): Promise<void> {
   sending ??= (async () => {
     const me = savedHunter();
     if (!me) return;
+    const back: Record<ReturnedFinds["why"], string[]> = { closed: [], code: [] };
     for (const f of queued()) {
       const r = await call<{ ok: true }>("find", { id: me.id, secret: me.secret, ...f });
       deletedHunter(r);
@@ -137,6 +171,12 @@ export function sendFinds(): Promise<void> {
       save(FINDS_KEY, queued().filter((x) => x.code !== f.code));
       const refused = refusedFinds().filter((c) => c !== f.code);
       save(REFUSED_KEY, "error" in r && (r.error === "far" || r.error === "where") ? [...refused, f.code] : refused);
+      if ("error" in r && (r.error === "closed" || r.error === "code")) back[r.error].push(f.code);
+    }
+    for (const why of ["closed", "code"] as const) {
+      if (!back[why].length) continue;
+      progress.uncollect(back[why]);
+      returnedListeners.forEach((l) => l({ codes: back[why], why }));
     }
   })().finally(() => {
     sending = null;

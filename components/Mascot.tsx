@@ -2,9 +2,11 @@
 /* eslint-disable @next/next/no-img-element -- a 20 KB still shown until the talking sprite is ready */
 
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useBack } from "@/lib/back";
 import { prefersReducedMotion } from "@/lib/dom";
 import { getHunt } from "@/lib/huntStore";
 import { duckFor } from "@/lib/music";
+import { followMute } from "@/lib/sound";
 import { progress, useProgress, type Progress } from "@/lib/store";
 import { anyClip, voiceFor } from "@/lib/voice";
 import { useSplashDone } from "./Splash";
@@ -229,6 +231,7 @@ const player = () => {
   if (!voiceEl) {
     voiceEl = new Audio();
     duckFor(voiceEl); // the music goes quiet while he talks (or sniffs)
+    followMute(voiceEl); // sound off: he talks without a sound (his words keep their pace)
   }
   return voiceEl;
 };
@@ -588,6 +591,8 @@ export function Mascot() {
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
   }, [stage]);
+  // The phone's Back sends him away, like Esc (lib/back.ts)
+  useBack(stage === "in" || stage === "on", () => keys.current.leave());
 
   if (stage === "wait" || stage === "gone") return null;
   const last = index === talk.lines.length - 1;

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { prizeProgress, standing, stationFromPayload, unlocked, type Prize, type Station } from "@/lib/hunt";
-import { myHunter, queueFind, sendFinds } from "@/lib/hunter";
+import { useBack } from "@/lib/back";
+import { BUILT_IN, prizeProgress, standing, stationFromPayload, unlocked, type Prize, type Station } from "@/lib/hunt";
+import { dropFinds, myHunter, onFindsReturned, queueFind, sendFinds } from "@/lib/hunter";
 import { lastFix } from "@/lib/location";
 import { getHunt, useHunt } from "@/lib/huntStore";
 import { askMotion } from "@/lib/motion";
@@ -98,7 +99,43 @@ export function Game({ phase }: { phase: Phase }) {
     return () => removeEventListener("online", online);
   }, [signedUp, p.name, p.province]);
 
+  // Test mode, as the organisers set it (not the built-in copy a first-ever open may start with).
+  // Turned off for the real hunt: codes collected while testing don't count there, so they're cleared
+  // and can be found again (and any still waiting to be sent are dropped).
+  const fromOrganisers = hunt !== BUILT_IN;
+  const { testMode, start } = hunt.settings;
+  useEffect(() => {
+    if (!fromOrganisers) return;
+    const dropped = progress.syncTestMode(testMode, start);
+    if (!dropped.length) return;
+    dropFinds(dropped);
+    showToast("The hunt is live! Your test QR codes were cleared: find them again.");
+  }, [fromOrganisers, testMode, start, showToast]);
+
+  // Finds the database handed back (lib/hunter.ts): those codes are "not found" again, and the player is told why
+  useEffect(
+    () =>
+      onFindsReturned(({ codes, why }) => {
+        const nums = codes.map((id) => `#${getHunt().known[id]?.num ?? id}`).join(", ");
+        const what = `QR code${codes.length === 1 ? "" : "s"} ${nums}`;
+        showToast(
+          why === "closed"
+            ? `${what} didn't count: the hunt isn't open right now.`
+            : `${what} ${codes.length === 1 ? "was" : "were"} turned off by the organisers, so ${codes.length === 1 ? "it" : "they"} didn't count.`,
+        );
+      }),
+    [showToast],
+  );
+
   const closeScan = useCallback(() => setScan(null), []);
+  // The phone's Back closes what's on top (and from another tab goes to the map) instead of leaving
+  // the game (lib/back.ts)
+  useBack(tab !== "map", () => setTab("map"));
+  useBack(tab === "map" && focus !== null, () => setFocus(null)); // a code's card on the map
+  useBack(scan !== null, closeScan);
+  useBack(caught !== null, () => setCaught(null));
+  useBack(task !== null, () => setTask(null));
+  useBack(overlay !== null, closeOverlay);
   // Fetch the AR scanner's 3D code in the background, so Scan opens quickly (and in time for the
   // browser to still count the tap when it asks to start full AR).
   useEffect(() => {
@@ -136,7 +173,7 @@ export function Game({ phase }: { phase: Phase }) {
       const before = standing(hunt, known, p.found);
       const after = standing(hunt, known, { ...p.found, [station.id]: Date.now() });
       const won = hunt.prizes.find((pr) => !prizeProgress(pr, before).won && prizeProgress(pr, after).won) ?? null;
-      progress.collect(station.id);
+      progress.collect(station.id, hunt.settings.testMode);
       queueFind(station.id, lastFix()); // (where the phone was: the database checks it was near)
       setScan(null);
       setCaught({ station, won });

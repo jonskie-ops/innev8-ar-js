@@ -8,6 +8,7 @@ import { myHunter, savedHunter, savedMeetings, updateHunter, type Hunter, type M
 import { PROVINCES } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
+import { SoundButton } from "./SoundButton";
 import { HunterQr } from "./HunterQr";
 import { I8Mark } from "./I8Mark";
 import {
@@ -128,6 +129,7 @@ export function MeView({
             {(name || "?").charAt(0).toUpperCase()}
           </span>
           <div className="psheet__actions">
+            <SoundButton className="icon-btn psheet__act" />
             <button type="button" className="icon-btn psheet__act" onClick={startEdit} aria-label="Edit profile">
               <PencilIcon />
             </button>

@@ -14,6 +14,7 @@ import type { ArMode, ArPhase, ArStage, CamState, Guide, Near } from "./ar/stage
 import { ArrowRightIcon, CameraOffIcon, CloseIcon, LockIcon, PinOffIcon } from "./icons";
 import { NoCodes } from "./NoCodes";
 import { QrTile } from "./QrTile";
+import { SoundButton } from "./SoundButton";
 
 /** Random spots: codes hidden around the player each time the scanner opens. */
 const PER_SCAN = 3;
@@ -161,7 +162,7 @@ export function ScanView({
   const inRange = gps ? range.ids : new Set<string>();
   const nearRef = useRef<Near[]>([]);
   useEffect(() => {
-    nearRef.current = ways.filter((w) => range.ids.has(w.s.id)).map((w) => ({ station: w.s, bearing: w.b, distance: w.d }));
+    nearRef.current = ways.filter((w) => range.ids.has(w.s.id)).map((w) => ({ station: w.s, bearing: w.b, distance: w.d, accuracy: fix?.accuracy ?? 0 }));
     stageRef.current?.setNearby(nearRef.current);
     // (ways: worked out from the same reading as range)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -338,9 +339,12 @@ export function ScanView({
       )}
 
       <div className="scan__top">
-        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close scanner">
-          <CloseIcon />
-        </button>
+        <span className="scan__btns">
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close scanner">
+            <CloseIcon />
+          </button>
+          <SoundButton />
+        </span>
         {testMode && tracking && <span className="chip chip--mode">{tracking}</span>}
         {fix && (testMode || weak) && (
           <span className={weak ? "chip chip--gps is-weak" : "chip chip--gps"}>

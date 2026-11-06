@@ -7,6 +7,9 @@ import { NoCodes } from "./NoCodes";
 
 type Quest = { id: string; title: string; desc: string; have: number; need: number };
 
+/** "1 QR code", "4 QR codes" */
+const qrCodes = (n: number) => `${n} QR code${n === 1 ? "" : "s"}`;
+
 /** Goals among the codes that are on (the zones counted are the ones that have codes). */
 function questsFor(hunt: Hunt, found: Record<string, number>): Quest[] {
   const all = hunt.stations;
@@ -20,7 +23,7 @@ function questsFor(hunt: Hunt, found: Record<string, number>): Quest[] {
   const prized = hunt.prizes.some((p) => p.rule === "all");
   const quests: Quest[] = [
     { id: "first", title: "First contact", desc: "Scan your first QR code.", have: caught.length, need: 1 },
-    { id: "half", title: "Halfway there", desc: `Collect ${half} QR codes.`, have: caught.length, need: half },
+    { id: "half", title: "Halfway there", desc: `Collect ${qrCodes(half)}.`, have: caught.length, need: half },
     {
       id: "rare",
       title: "Rare hunter",
@@ -39,7 +42,7 @@ function questsFor(hunt: Hunt, found: Record<string, number>): Quest[] {
     {
       id: "all",
       title: "Completionist",
-      desc: prized ? `Collect all ${TOTAL} QR codes to unlock the prize.` : `Collect all ${TOTAL} QR codes.`,
+      desc: `${TOTAL === 1 ? "Collect the QR code" : `Collect all ${TOTAL} QR codes`}${prized ? " to unlock the prize" : ""}.`,
       have: caught.length,
       need: TOTAL,
     },

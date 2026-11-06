@@ -48,8 +48,10 @@
 }
 html {
   -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none; /* pulling down doesn't reload the game (or bounce it) */
 }
 body {
+  overscroll-behavior-y: none;
   margin: 0;
   background: var(--bg);
   color: var(--text);

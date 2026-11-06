@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { DEFAULT_PLACE, toLatLng, type Place } from "./geo";
 import { BUILT_IN, inOrder, RADIUS, RARITIES, TASKS, type Hunt, type Prize, type PrizeRule, type Station, type Task, type Zone } from "./hunt";
+import { within } from "./net";
 import { firstSponsor, type Sponsor } from "./sponsors";
 
 /**
@@ -68,8 +69,11 @@ function refresh(again = false) {
   lastAsked = Date.now();
   asking = (async () => {
     try {
-      const res = await fetch("/api/hunt", { cache: "no-store" });
-      const body = res.ok ? ((await res.json()) as { hunt?: unknown; at?: unknown }) : null;
+      // (no answer within the time limit counts as no signal: lib/net.ts)
+      const { res, body } = await within(async (signal) => {
+        const res = await fetch("/api/hunt", { cache: "no-store", signal });
+        return { res, body: res.ok ? ((await res.json()) as { hunt?: unknown; at?: unknown }) : null };
+      });
       if (body && !again && wasStale(res, body.at)) setTimeout(() => void refresh(true), AGAIN_STALE_MS);
       const hunt = body ? parseHunt(body.hunt) : null;
       if (!hunt) return;
