@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { pad2 } from "@/lib/dom";
-import { bearing, howFar, metresBetween } from "@/lib/geo";
+import { bearing, howFar, metresBetween, onOpenSide } from "@/lib/geo";
 import { unlocked, type Station } from "@/lib/hunt";
 import { getHunt, useHunt } from "@/lib/huntStore";
 import { retryLocation, useLocation, type LocationState } from "@/lib/location";
@@ -150,14 +150,26 @@ export function ScanView({
     ? hidden.gps.map((s) => ({ s, d: metresBetween(fix, s), b: bearing(fix, s) })).sort((a, b) => a.d - b.d)
     : [];
   // In range: within its distance, and staying in until a little past it (a GPS jump doesn't hide it).
-  // Worked out once per GPS reading; `entered`: when one last came in range (by the GPS's clock).
-  const [range, setRange] = useState<{ at: number; ids: Set<string>; entered: number }>({ at: 0, ids: new Set(), entered: 0 });
+  // A code "Seen from" one side (while the admin's switch is on) also needs the player on that side
+  // first (lib/geo.ts onOpenSide): until then it's `blocked`, a wall or building in the way. Once it
+  // shows, it stays. Worked out once per GPS reading; `entered`: when one last came in range (by the GPS's clock).
+  const [range, setRange] = useState<{ at: number; ids: Set<string>; blocked: Set<string>; entered: number }>({
+    at: 0,
+    ids: new Set(),
+    blocked: new Set(),
+    entered: 0,
+  });
   if (fix && fix.at !== range.at) {
     const ids = new Set<string>();
-    for (const { s, d } of ways)
-      if (d <= s.radius || (range.ids.has(s.id) && d <= s.radius + Math.max(LEAVE_MARGIN, s.radius * 0.5))) ids.add(s.id);
+    const blocked = new Set<string>();
+    for (const { s, d } of ways) {
+      const was = range.ids.has(s.id);
+      if (!(d <= s.radius || (was && d <= s.radius + Math.max(LEAVE_MARGIN, s.radius * 0.5)))) continue;
+      if (was || !settings.seenFrom || onOpenSide(s, fix, fix.accuracy)) ids.add(s.id);
+      else blocked.add(s.id);
+    }
     const entered = [...ids].some((id) => !range.ids.has(id)) ? fix.at : range.entered;
-    setRange({ at: fix.at, ids, entered });
+    setRange({ at: fix.at, ids, blocked, entered });
   }
   const inRange = gps ? range.ids : new Set<string>();
   const nearRef = useRef<Near[]>([]);
@@ -243,6 +255,9 @@ export function ScanView({
   const aim = gps && aimed && !found[aimed.id] ? ways.find((w) => w.s === aimed) : undefined;
   const aimIn = aim ? inRange.has(aim.s.id) : false;
   const anyIn = inRange.size > 0;
+  // Close enough, but on the wrong side of a code "Seen from" one side
+  const aimBlocked = gps && aim ? range.blocked.has(aim.s.id) : false;
+  const anyBlocked = gps && range.blocked.size > 0;
   const weak = fix ? fix.accuracy > WEAK_GPS : false;
   // Qufoo speaks up for a few seconds after a code comes in range
   const recently = Boolean(fix && range.entered && fix.at - range.entered < 6000);
@@ -252,7 +267,11 @@ export function ScanView({
   else if (phase === "searching" && gps && !fix) hint = LOCATION_HINT[loc.status === "on" ? "asking" : loc.status];
   else if (phase === "searching" && gps && !anyIn)
     // (walking to a code: its meter says how far, so nothing here covers the radar)
-    hint = aim ? null : "Walk around the venue: QR codes show when you're near them.";
+    hint = anyBlocked
+      ? "Something's in the way. Find a way around to see the QR code."
+      : aim
+        ? null
+        : "Walk around the venue: QR codes show when you're near them.";
   else if (phase === "searching") {
     const away = guide?.away;
     hint = away ? (
@@ -378,7 +397,15 @@ export function ScanView({
             <b>
               #{pad2(aim.s.num)} · {aimIn ? "Here!" : howFar(aim.d)}
             </b>
-            <small>{aimIn ? "Look around for it" : turn === null ? `Shows within ${aim.s.radius} m` : `Shows within ${aim.s.radius} m · follow the arrow`}</small>
+            <small>
+              {aimIn
+                ? "Look around for it"
+                : aimBlocked
+                  ? "Something's in the way · find a way around"
+                  : turn === null
+                    ? `Shows within ${aim.s.radius} m`
+                    : `Shows within ${aim.s.radius} m · follow the arrow`}
+            </small>
           </span>
           <span className="scan__meter-bar" aria-hidden="true">
             <i style={{ width: `${Math.round(closeness * 100)}%` }} />

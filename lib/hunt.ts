@@ -57,12 +57,18 @@ export type Station = {
   lng: number;
   /** It shows in the scanner once the player is within this many metres of its spot. */
   radius: number;
+  /**
+   * Seen from one side only (while the admin's "Seen from one side" switch is on): a fan out from its
+   * spot toward where players must stand (`dir`, its middle, in compass degrees from north; `width` in
+   * degrees), so they walk around a wall or a building to see it. Null: seen from every side.
+   */
+  seen: { dir: number; width: number } | null;
 };
 
 /** A code's distance (m) until the organisers set one. */
 export const RADIUS = 10;
 
-const BUILT_IN_STATIONS: Omit<Station, "points" | "task" | "sponsor" | "location" | "lat" | "lng" | "radius">[] = [
+const BUILT_IN_STATIONS: Omit<Station, "points" | "task" | "sponsor" | "location" | "lat" | "lng" | "radius" | "seen">[] = [
   {
     id: "px01",
     code: "I8AR-01-M2VD",
@@ -227,6 +233,8 @@ export type Settings = {
    * away from the venue). Off: each code is at its GPS spot and shows within its distance.
    */
   randomSpots: boolean;
+  /** On: a code with a "Seen from" side (Station.seen) shows only to players standing on that side. */
+  seenFrom: boolean;
 };
 
 /**
@@ -252,6 +260,7 @@ export const BUILT_IN: Hunt = {
     location: DEFAULT_PLACE,
     ...toLatLng(s.x, s.y),
     radius: RADIUS,
+    seen: null,
   })),
   zones: BUILT_IN_ZONES,
   prizes: [],
@@ -263,6 +272,7 @@ export const BUILT_IN: Hunt = {
     testMode: TEST_MODE,
     claimPlace: "INNEV8 help desk",
     randomSpots: false,
+    seenFrom: false,
   },
 };
 

@@ -63,6 +63,23 @@ export function bearing(a: LatLng, b: LatLng) {
   return ((Math.atan2(east, north) / RAD) % 360 + 360) % 360;
 }
 
+/**
+ * Whether a player at `from` (GPS good to ±`accuracy` m) stands on a code's open side. A code "Seen
+ * from" one side has a fan out from its spot (`seen.dir` its middle, `seen.width` wide, in degrees):
+ * the player must be inside it, and clear of its edges by more than the GPS's error (at most half the
+ * code's distance, so someone well inside can always see it), so a GPS jump by a wall doesn't show it
+ * from behind. No fan: every side is open.
+ */
+export function onOpenSide(code: LatLng & { radius: number; seen: { dir: number; width: number } | null }, from: LatLng, accuracy: number) {
+  if (!code.seen) return true;
+  const off = Math.abs(((bearing(code, from) - code.seen.dir + 540) % 360) - 180); // 0–180 from the middle
+  const inside = code.seen.width / 2 - off; // degrees inside the fan's nearest edge
+  if (inside <= 0) return false;
+  const d = metresBetween(code, from);
+  const clear = inside >= 90 ? d : d * Math.sin(inside * RAD); // metres from that edge
+  return clear >= Math.min(Math.max(accuracy, 0), code.radius / 2);
+}
+
 /** "8 m", "120 m", "2.4 km" (never split across lines) */
 export const howFar = (m: number) =>
   m < 1000 ? `${Math.max(1, Math.round(m))} m` : `${(m / 1000).toFixed(1)} km`;

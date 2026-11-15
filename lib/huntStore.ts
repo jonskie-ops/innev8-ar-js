@@ -149,7 +149,9 @@ function parseStation(v: unknown): Station | null {
   const spot = num(s.lat) && num(s.lng) ? { lat: s.lat, lng: s.lng } : toLatLng(s.x, s.y);
   const radius = num(s.radius) && s.radius > 0 ? s.radius : RADIUS;
   const location = str(s.location) ? s.location : DEFAULT_PLACE; // and before locations: Leyte Academic Center
-  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, task, sponsor, location, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y, ...spot, radius };
+  // and before "Seen from": every side
+  const seen = s.seen && num(s.seen.dir) && num(s.seen.width) && s.seen.width > 0 ? { dir: s.seen.dir, width: s.seen.width } : null;
+  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, task, sponsor, location, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y, ...spot, radius, seen };
 }
 function parseZone(v: unknown): Zone | null {
   const z = v as Partial<Zone> | null;
@@ -201,6 +203,13 @@ function parseHunt(v: unknown): Hunt | null {
     // (a copy from before the sponsor logos update, or saved before it: the game's own)
     sponsors: Array.isArray(h.sponsors) ? h.sponsors.map(parseSponsor).filter(isSome) : null,
     places,
-    settings: { start: s.start, end: s.end, testMode: s.testMode, claimPlace: s.claimPlace, randomSpots: s.randomSpots === true },
+    settings: {
+      start: s.start,
+      end: s.end,
+      testMode: s.testMode,
+      claimPlace: s.claimPlace,
+      randomSpots: s.randomSpots === true,
+      seenFrom: s.seenFrom === true,
+    },
   };
 }

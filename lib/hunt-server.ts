@@ -71,6 +71,9 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
                     : { lat: 0, lng: 0, width: 1, hand: true },
                 ).toLatLng(Number(c.x), Number(c.y));
           const radius = n(c.radius);
+          // Seen from one side (a database without the seen-from update: every side)
+          const dir = n(c.seen_dir);
+          const width = n(c.seen_width);
           return {
             id: c.id,
             code: c.code.toUpperCase(),
@@ -90,6 +93,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             y: Number(c.y),
             ...spot,
             radius: radius !== null && radius > 0 ? radius : RADIUS,
+            seen: dir !== null && width !== null && width > 0 ? { dir, width } : null,
           };
         }).sort(inOrder(places)),
         zones: zones.map(
@@ -145,6 +149,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
           testMode: s.test_mode,
           claimPlace: s.claim_place,
           randomSpots: s.random_spots === true,
+          seenFrom: s.seen_from === true,
         },
       },
     };
@@ -173,6 +178,8 @@ type CodeRow = {
   lat?: number | string | null;
   lng?: number | string | null;
   radius?: number | string;
+  seen_dir?: number | string | null;
+  seen_width?: number | string | null;
 };
 type ZoneRow = { id: string; name: string; label_x: number | string | null; label_y: number | string | null };
 type PrizeRow = {
@@ -200,4 +207,4 @@ type PlaceRow = {
   outlines: { buildings?: string; roads?: string; grounds?: string } | null;
 };
 type SponsorRow = { id: string; name: string; badge_path: string | null };
-type SettingsRow = { starts_at: string; ends_at: string; test_mode: boolean; claim_place: string; random_spots?: boolean };
+type SettingsRow = { starts_at: string; ends_at: string; test_mode: boolean; claim_place: string; random_spots?: boolean; seen_from?: boolean };
