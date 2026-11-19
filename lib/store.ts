@@ -32,7 +32,7 @@ export type Progress = {
    * Missing for saves from before this was kept: those codes were all collected in test mode.
    */
   testFinds?: string[];
-  /** The organisers deleted this player, so the game started over: sign-up says so (until it's done). */
+  /** The organisers deleted this player, so the game started over: a pop-up on sign-up says so (until it's closed). */
   wasReset?: boolean;
 };
 
@@ -170,6 +170,11 @@ export const progress = {
    */
   restart() {
     write({ ...EMPTY, wasReset: true });
+  },
+  /** They've read the pop-up saying the game started over. */
+  resetSeen() {
+    const p = read();
+    if (p.wasReset) write({ ...p, wasReset: undefined });
   },
   /** Forgets the player entirely, back to the first-launch name prompt (test tool). */
   clear() {

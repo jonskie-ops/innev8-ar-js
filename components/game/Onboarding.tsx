@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useBack } from "@/lib/back";
 import { PROVINCES } from "@/lib/site";
 import { progress, useProgress } from "@/lib/store";
 import { QufooGuide, signUpGuide } from "../Mascot";
@@ -20,6 +21,10 @@ export function Onboarding() {
   const [dir, setDir] = useState<"fwd" | "back">("fwd");
   const [name, setName] = useState(saved.name);
   const [province, setProvince] = useState(saved.province);
+
+  // The organisers deleted this player and the game started over: a pop-up says so (Back closes it too)
+  const resetSeen = () => progress.resetSeen();
+  useBack(saved.wasReset === true, resetSeen);
 
   const canNext = step === 0 ? name.trim() !== "" : step === 1 ? province !== "" : true;
 
@@ -74,11 +79,6 @@ export function Onboarding() {
               <label htmlFor="hunter-name">What&apos;s your name?</label>
             </h1>
             <p className="wizard__lead">This is the name other users will see.</p>
-            {saved.wasReset && (
-              <p className="wizard__reset" role="status">
-                The organisers reset your game. Sign up to start again.
-              </p>
-            )}
             <input
               id="hunter-name"
               className="wizard__input"
@@ -151,6 +151,23 @@ export function Onboarding() {
           )}
         </button>
       </div>
+
+      {saved.wasReset && (
+        <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="reset-title" aria-describedby="reset-text">
+          <div className="catch catch--legendary">
+            <p className="catch__eyebrow">Game reset</p>
+            <h2 id="reset-title">Starting over</h2>
+            <p id="reset-text" className="catch__blurb">
+              The organisers reset your game. Sign up to start again.
+            </p>
+            <div className="catch__btns">
+              <button type="button" className="btn btn--primary" onClick={resetSeen} autoFocus>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

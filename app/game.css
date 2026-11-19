@@ -2075,16 +2075,6 @@ button.psec__head {
 .wizard__lead b {
   color: var(--text);
 }
-/* The game started over (the organisers deleted this player) */
-.wizard__reset {
-  margin: -8px 0 22px;
-  padding: 12px 14px;
-  border: 1px solid rgba(214, 181, 109, 0.45);
-  border-radius: 14px;
-  background: rgba(214, 181, 109, 0.12);
-  color: var(--text);
-  font-size: 15px;
-}
 .wizard__input {
   padding: 17px 18px;
   border-radius: 16px;
