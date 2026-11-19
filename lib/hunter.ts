@@ -164,8 +164,10 @@ export function sendFinds(): Promise<void> {
     if (!me) return;
     const back: Record<ReturnedFinds["why"], string[]> = { closed: [], code: [] };
     for (const f of queued()) {
-      const r = await call<{ ok: true }>("find", { id: me.id, secret: me.secret, ...f });
+      const r = await call<{ ok: true; points?: number }>("find", { id: me.id, secret: me.secret, ...f });
       deletedHunter(r);
+      // The points this find earned (points can drop as more people find a code)
+      if ("ok" in r && typeof r.points === "number" && Number.isFinite(r.points)) progress.earn(f.code, r.points);
       // No signal, or a new hunter ID to make first: try again later
       if ("error" in r && ["offline", "server", "unknown", "bad"].includes(r.error)) break;
       save(FINDS_KEY, queued().filter((x) => x.code !== f.code));

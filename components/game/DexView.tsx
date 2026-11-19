@@ -34,7 +34,8 @@ export function DexView({
   const { hunt, known } = useHunt();
   const [layout, setLayout] = useState<Layout>("list"); // always opens as a list
   const [open, setOpen] = useState<string | null>(null);
-  const me = standing(hunt, known, found);
+  const { earned } = useProgress();
+  const me = standing(hunt, known, found, earned);
   const { count, total, kept } = me;
   const codes = [...hunt.stations, ...kept];
   const off = new Set(kept.map((s) => s.id));
@@ -110,7 +111,8 @@ export function DexView({
                         <CheckIcon />
                       </span>
                     ) : (
-                      <span className="qlist__pts">+{s.points}</span>
+                      // What it's worth now (less once more people have found it, when points drop)
+                      <span className="qlist__pts">+{s.worth ?? s.points}</span>
                     )}
                   </span>
                 </button>
@@ -151,7 +153,12 @@ export function DexView({
               <div className="dex__info">
                 <p className="label">
                   #{pad2(sel.num)} · <span className={`rarity rarity--${sel.rarity}`}>{RARITY_LABEL[sel.rarity]}</span>{" "}
-                  · {sel.points} pts
+                  ·{" "}
+                  {found[sel.id]
+                    ? `${earned?.[sel.id] ?? sel.points} pts`
+                    : sel.worth !== undefined && sel.worth < sel.points
+                      ? `Worth ${sel.worth} pts now · ${sel.finders ?? 0} found it`
+                      : `${sel.points} pts`}
                 </p>
                 <h2>{found[sel.id] ? sel.name : "Not found yet"}</h2>
                 <p className="dex__where">

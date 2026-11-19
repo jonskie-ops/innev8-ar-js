@@ -2,6 +2,7 @@
 
 import { standing } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
+import { useProgress } from "@/lib/store";
 import { CheckIcon } from "./icons";
 
 /** In the scanner when every QR code is already found: nothing left to look for, and the way to the prizes. */
@@ -17,7 +18,7 @@ export function AllFoundCard({
   onClose: () => void;
 }) {
   const { hunt, known } = useHunt();
-  const { count, score } = standing(hunt, known, found);
+  const { count, score } = standing(hunt, known, found, useProgress().earned);
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="allfound-title">
       <div className="catch catch--legendary">

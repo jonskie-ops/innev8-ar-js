@@ -41,6 +41,12 @@ export type Station = {
   rarity: Rarity;
   /** What finding it is worth (set per code in the admin; by rarity unless changed). */
   points: number;
+  /**
+   * What the next finder gets now, and how many have found it so far (the admin's "points drop as more
+   * find a code"; missing before that update, or offline: its points).
+   */
+  worth?: number;
+  finders?: number;
   /** An extra task to do before it can be found (networking), or none. */
   task: Task;
   /** Its sponsor's id (lib/sponsors.ts), or "none". */
@@ -303,7 +309,7 @@ export function inOrder(places: { id: string }[] | null) {
  * `known` (every code this phone has seen), still counting toward points and prizes. `count`/`total`
  * are the codes that are on now.
  */
-export function standing(hunt: Hunt, known: Record<string, Station>, found: Record<string, number>) {
+export function standing(hunt: Hunt, known: Record<string, Station>, found: Record<string, number>, earned?: Record<string, number>) {
   const on = new Set(hunt.stations.map((s) => s.id));
   const live = hunt.stations.filter((s) => found[s.id]);
   const kept = Object.keys(found)
@@ -317,7 +323,8 @@ export function standing(hunt: Hunt, known: Record<string, Station>, found: Reco
     kept,
     /** Every code they've found that's still known, on or not */
     finds: mine.length,
-    score: mine.reduce((sum, s) => sum + s.points, 0),
+    // What each find earned (points can drop as more people find a code), else the code's points
+    score: mine.reduce((sum, s) => sum + (earned?.[s.id] ?? s.points), 0),
     legendary: mine.some((s) => s.rarity === "legendary"),
     /** Which codes they've found (a prize for one chosen code) */
     found,

@@ -63,7 +63,7 @@ export function Game({ phase }: { phase: Phase }) {
   // Sign-up needs both steps; older saves have a name but no province yet.
   const signedUp = p.onboarded && p.province !== "";
   const { hunt, known } = useHunt();
-  const me = standing(hunt, known, p.found);
+  const me = standing(hunt, known, p.found, p.earned);
   const { count, total } = me;
   const points = me.score;
   // The leaderboard (the trophy chip in the top bar opens it), kept fresh while the game is open
@@ -168,15 +168,17 @@ export function Game({ phase }: { phase: Phase }) {
   const onCatch = useCallback(
     (station: Station) => {
       // Did this catch win a prize? (Won now, and not before it)
-      const before = standing(hunt, known, p.found);
-      const after = standing(hunt, known, { ...p.found, [station.id]: Date.now() });
+      // What it's worth to this finder as far as the phone knows (the database's answer replaces it)
+      const worth = station.worth ?? station.points;
+      const before = standing(hunt, known, p.found, p.earned);
+      const after = standing(hunt, known, { ...p.found, [station.id]: Date.now() }, { ...p.earned, [station.id]: worth });
       const won = hunt.prizes.find((pr) => !prizeProgress(pr, before).won && prizeProgress(pr, after).won) ?? null;
-      progress.collect(station.id, hunt.settings.testMode);
+      progress.collect(station.id, hunt.settings.testMode, worth);
       queueFind(station.id, lastFix()); // (where the phone was: the database checks it was near)
       setScan(null);
       setCaught({ station, won });
     },
-    [hunt, known, p.found],
+    [hunt, known, p.found, p.earned],
   );
 
   if (!signedUp) return <Onboarding />;

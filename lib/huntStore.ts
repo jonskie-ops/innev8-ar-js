@@ -151,7 +151,9 @@ function parseStation(v: unknown): Station | null {
   const location = str(s.location) ? s.location : DEFAULT_PLACE; // and before locations: Leyte Academic Center
   // and before "Seen from": every side
   const seen = s.seen && num(s.seen.dir) && num(s.seen.width) && s.seen.width > 0 ? { dir: s.seen.dir, width: s.seen.width } : null;
-  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, task, sponsor, location, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y, ...spot, radius, seen };
+  // and before points that drop: worth its points
+  const worth = num(s.worth) && s.worth > 0 ? { worth: s.worth, finders: num(s.finders) ? s.finders : 0 } : {};
+  return { id: s.id, code: s.code, num: s.num, name: s.name, zone: s.zone, spot: s.spot, rarity: s.rarity!, points: s.points, ...worth, task, sponsor, location, clue: s.clue, blurb: s.blurb, x: s.x, y: s.y, ...spot, radius, seen };
 }
 function parseZone(v: unknown): Zone | null {
   const z = v as Partial<Zone> | null;

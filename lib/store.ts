@@ -11,6 +11,12 @@ export type Progress = {
   /** Station id → time its QR code was collected (ms since epoch). */
   found: Record<string, number>;
   /**
+   * Station id → the points that find earned, as the database gave them (with points that drop as
+   * more people find a code, a later finder gets less); until it answers, what the code was worth
+   * when caught. Missing: the code's full points (saves from before this was kept).
+   */
+  earned?: Record<string, number>;
+  /**
    * Qufoo's tour of the menu for new players: the parts he has already explained ("map", "dex",
    * "quests", "me", "scan"). Missing for players who signed up before the tour existed: no tour.
    */
@@ -27,6 +33,9 @@ export type Progress = {
    */
   testFinds?: string[];
 };
+
+/** The map without those ids. */
+const without = (m: Record<string, number>, ids: string[]) => Object.fromEntries(Object.entries(m).filter(([id]) => !ids.includes(id)));
 
 const KEY = "i8ar-progress-v1";
 const EMPTY: Progress = { name: "", province: "", onboarded: false, found: {} };
@@ -96,13 +105,23 @@ export const progress = {
     if (p.tasks?.[codeId]) return;
     write({ ...p, tasks: { ...p.tasks, [codeId]: { with: withId, at: Date.now() } } });
   },
-  /** Returns false if that QR code was already collected. `test`: the hunt is in test mode. */
-  collect(id: string, test = false) {
+  /**
+   * Returns false if that QR code was already collected. `test`: the hunt is in test mode. `points`:
+   * what it's worth to this finder as far as the phone knows (the database's answer replaces it).
+   */
+  collect(id: string, test = false, points?: number) {
     const p = read();
     if (p.found[id]) return false;
     const testFinds = test ? [...(p.testFinds ?? Object.keys(p.found)), id] : p.testFinds;
-    write({ ...p, found: { ...p.found, [id]: Date.now() }, ...(testFinds ? { testFinds } : {}) });
+    const earned = points === undefined ? p.earned : { ...p.earned, [id]: points };
+    write({ ...p, found: { ...p.found, [id]: Date.now() }, ...(testFinds ? { testFinds } : {}), ...(earned ? { earned } : {}) });
     return true;
+  },
+  /** The points the database gave a find (it counts toward the score and matches the leaderboard). */
+  earn(id: string, points: number) {
+    const p = read();
+    if (!p.found[id] || p.earned?.[id] === points) return;
+    write({ ...p, earned: { ...p.earned, [id]: points } });
   },
   /**
    * Keeps the collection in step with test mode. On: older saves' codes are noted as test finds.
@@ -119,7 +138,7 @@ export const progress = {
     const dropped = Object.keys(p.found).filter((id) => test.has(id));
     if (!dropped.length && p.testFinds?.length === 0) return [];
     const found = Object.fromEntries(Object.entries(p.found).filter(([id]) => !test.has(id)));
-    write({ ...p, found, testFinds: [] });
+    write({ ...p, found, testFinds: [], ...(p.earned ? { earned: without(p.earned, dropped) } : {}) });
     return dropped;
   },
   /**
@@ -130,11 +149,16 @@ export const progress = {
     const p = read();
     if (!ids.some((id) => p.found[id])) return;
     const found = Object.fromEntries(Object.entries(p.found).filter(([id]) => !ids.includes(id)));
-    write({ ...p, found, ...(p.testFinds ? { testFinds: p.testFinds.filter((id) => !ids.includes(id)) } : {}) });
+    write({
+      ...p,
+      found,
+      ...(p.testFinds ? { testFinds: p.testFinds.filter((id) => !ids.includes(id)) } : {}),
+      ...(p.earned ? { earned: without(p.earned, ids) } : {}),
+    });
   },
   /** Clears collected QR codes; the player keeps their name. */
   reset() {
-    write({ ...read(), found: {}, testFinds: [] });
+    write({ ...read(), found: {}, testFinds: [], earned: {} });
   },
   /** Forgets the player entirely, back to the first-launch name prompt (test tool). */
   clear() {

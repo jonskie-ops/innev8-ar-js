@@ -3,6 +3,7 @@
 import { pad2 } from "@/lib/dom";
 import { RARITY_LABEL, zoneName, type Prize, type Station } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
+import { useProgress } from "@/lib/store";
 import { QrTile } from "./QrTile";
 
 /** Shown right after a QR code is collected (and, if that catch won a prize, the way to it). */
@@ -26,6 +27,8 @@ export function CatchCard({
   onPrize: (prize: Prize) => void;
 }) {
   const { hunt } = useHunt();
+  // What this find earned: the database's answer once it's in, else what the code was worth when caught
+  const earned = useProgress().earned?.[station.id] ?? station.worth ?? station.points;
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="catch-title">
       <div className={`catch catch--${station.rarity}`}>
@@ -44,7 +47,7 @@ export function CatchCard({
         <p className="catch__blurb">{station.blurb}</p>
         <div className="catch__stats">
           <span>
-            <b>+{station.points}</b> pts
+            <b>+{earned}</b> pts
           </span>
           <span>
             <b>{count}</b>/{total} QR codes

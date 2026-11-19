@@ -31,6 +31,10 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
       if (!res.ok) throw new Error(`${path}: ${res.status}`);
       return res.json();
     };
+    // Each code's finders so far and what the next finder gets: null before the points drop update
+    const worthP = fetch(`${url}/rest/v1/rpc/code_worth`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: "{}" })
+      .then(async (res) => (res.ok ? ((await res.json()) as WorthRow[]) : null))
+      .catch(() => null);
     const [codes, zones, prizes, settings, sponsors, places] = await Promise.all([
       // Every column: a database without the networking, sponsors or GPS update yet simply has no task,
       // sponsor or GPS spot (nor random spots, in the settings)
@@ -53,6 +57,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
     ]);
     const s = settings[0];
     if (!s) throw new Error("no settings");
+    const worth = new Map((await worthP)?.map((w) => [w.code_id, w]) ?? []);
     return {
       at,
       hunt: {
@@ -74,6 +79,8 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
           // Seen from one side (a database without the seen-from update: every side)
           const dir = n(c.seen_dir);
           const width = n(c.seen_width);
+          const w = worth.get(c.id);
+          const now = n(w?.worth);
           return {
             id: c.id,
             code: c.code.toUpperCase(),
@@ -83,6 +90,7 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
             spot: c.spot,
             rarity: c.rarity,
             points: c.points,
+            ...(now !== null && now > 0 && { worth: now, finders: n(w?.finders) ?? 0 }),
             task: TASKS.includes(c.task as Task) ? (c.task as Task) : "none",
             // A database without sponsors yet: each code's first sponsor, as the update would start it
             sponsor: c.sponsor ?? firstSponsor(c.num),
@@ -181,6 +189,7 @@ type CodeRow = {
   seen_dir?: number | string | null;
   seen_width?: number | string | null;
 };
+type WorthRow = { code_id: string; finders: number | string; worth: number | string };
 type ZoneRow = { id: string; name: string; label_x: number | string | null; label_y: number | string | null };
 type PrizeRow = {
   id: string;
