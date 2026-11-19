@@ -167,6 +167,11 @@ export async function createArStage(
   target: Station | undefined,
   ev: ArEvents,
   mode: ArMode = "random",
+  /**
+   * The camera, already asked for as the scanner opened (cameraEarly): taken as the camera's first
+   * start. Null inside: not asked early (a phone with full AR), so asked here as usual.
+   */
+  early?: Promise<MediaStream | null>,
 ): Promise<ArStage> {
   let hidden = hide;
   let wanted = target;
@@ -194,8 +199,9 @@ export async function createArStage(
   const cam = new THREE.PerspectiveCamera(62, 1, 0.05, 80);
   cam.rotation.order = "YXZ";
 
-  // ---- Virtual room, shown when there's no camera feed: plain dark space with faint drifting specks
-  // (no floor), so turning still shows movement
+  // ---- Virtual room, shown when the camera can't be used (blocked, none, not https): plain dark
+  // space with faint drifting specks (no floor), so turning still shows movement. Not while the
+  // camera is starting: plain black then, like a camera app.
   const virtual = new THREE.Group();
   scene.add(virtual);
   const dustGeo = track(new THREE.BufferGeometry());
@@ -226,7 +232,7 @@ export async function createArStage(
     scene.background = on ? new THREE.Color(0x030817) : null;
     scene.fog = on ? new THREE.Fog(0x030817, 6, 15) : null;
   };
-  showVirtual(true);
+  showVirtual(false);
 
   // ---- Effects around the code being revealed: halo, pulse rings, collect burst
   const fx = new THREE.Group();
@@ -575,16 +581,22 @@ export async function createArStage(
   const startCamera = async (retries = 0) => {
     if (stream || starting || disposed) return;
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      showVirtual(true);
       ev.onCamera(window.isSecureContext ? "unavailable" : "insecure");
       return;
     }
+    // (the first start: the camera asked for as the scanner opened, if it was)
+    const head = early;
+    early = undefined;
     starting = true;
-    ev.onCamera("starting");
+    if (!head) ev.onCamera("starting");
     try {
-      const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
+      const s =
+        (head ? await head : null) ??
+        (await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        }));
       if (disposed || xr) return s.getTracks().forEach((t) => t.stop());
       // Hidden while it was starting: not left running in the background; started again on return
       if (document.visibilityState === "hidden") {
@@ -614,6 +626,7 @@ export async function createArStage(
         retryTimer = window.setTimeout(() => void startCamera(retries - 1), 800);
         return;
       }
+      showVirtual(true);
       ev.onCamera(denied ? "denied" : "unavailable");
     } finally {
       starting = false;

@@ -37,6 +37,21 @@ const CAM_MESSAGE: Partial<Record<CamState, string>> = {
   unavailable: "No camera is available on this device.",
 };
 
+/**
+ * The camera, asked for as the scanner opens (while the 3D layer loads), so the live picture shows
+ * straight away. Null: not asked here. A phone with full AR (WebXR) tries that first and needs the
+ * camera free, so the 3D layer asks for it after, as before.
+ */
+async function cameraEarly(): Promise<MediaStream | null> {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) return null;
+  const xr = navigator.xr ? await navigator.xr.isSessionSupported("immersive-ar").catch(() => false) : false;
+  if (xr) return null;
+  return navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false,
+  });
+}
+
 /** Why there's no location yet, as the scanner says it. */
 const LOCATION_HINT: Record<Exclude<LocationState["status"], "on">, string> = {
   off: "Finding where you are…",
@@ -211,9 +226,20 @@ export function ScanView({
   });
 
   // The 3D layer (and three.js) loads only when the scanner opens (and again, if the tester switches
-  // to random spots).
+  // to random spots). The camera is asked for at the same time, so the live picture shows while it
+  // loads (the 3D layer takes it over).
   useEffect(() => {
     let alive = true;
+    const early = cameraEarly();
+    void early
+      .then((s) => {
+        const v = videoRef.current;
+        if (!s || !alive || !v || v.srcObject) return;
+        v.srcObject = s;
+        void v.play().catch(() => {});
+        setCam("on");
+      })
+      .catch(() => {}); // (the 3D layer says why: blocked, or no camera)
     import("./ar/stage")
       .then(({ createArStage }) =>
         createArStage(
@@ -236,6 +262,7 @@ export function ScanView({
             onEnd: () => live.current.onClose(), // e.g. the phone's back button during AR
           },
           mode,
+          early,
         ),
       )
       .then((s) => {
@@ -248,6 +275,8 @@ export function ScanView({
       alive = false;
       stageRef.current?.dispose();
       stageRef.current = null;
+      // (closed before the 3D layer took the camera: it's let go here too)
+      void early.then((s) => s?.getTracks().forEach((t) => t.stop())).catch(() => {});
     };
   }, [hidden, start, mode]);
 

@@ -2253,12 +2253,14 @@ button.psec__head {
 }
 
 /* Scanner */
+/* (plain black while the camera starts, like a camera app; the 3D layer draws its own dark space if
+   the camera can't be used) */
 .scan {
   position: fixed;
   inset: 0;
   z-index: 100;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 50%, #0a1a4d, var(--bg-deep) 70%);
+  background: #000;
   touch-action: manipulation;
   animation: fade-in 0.25s ease-out;
 }
