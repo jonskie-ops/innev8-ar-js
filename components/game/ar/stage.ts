@@ -51,6 +51,11 @@ export type Near = {
   distance: number;
   /** How sure the GPS is (± metres). */
   accuracy: number;
+  /**
+   * Seen from afar (the admin's "See codes from farther away"): in view, but not to be revealed until
+   * the player is within its own distance; held in the frame it says how far to walk.
+   */
+  locked?: boolean;
 };
 
 export type ArStage = {
@@ -832,6 +837,12 @@ export async function createArStage(
         const seen = v.z < 0 && Math.abs(ndc.x) < 1 && Math.abs(ndc.y) < 1;
         c.shimmer.visible = c.ghost.visible = seen;
         (c.shimmer.material as THREE.PointsMaterial).opacity = glint;
+        // Seen from afar: never revealed from here; in view, how far to walk until it can be collected
+        const far = gpsMode ? nearby.find((n) => n.locked && n.station.id === c.station.id) : undefined;
+        if (far) {
+          if (seen) away = Math.min(away ?? Infinity, Math.max(1, far.distance - far.station.radius));
+          continue;
+        }
         if (seen && d > reach) away = Math.min(away ?? Infinity, d);
         else if (d <= reach && v.z < 0 && Math.abs(ndc.x) < AIM_X && Math.abs(ndc.y) < AIM_Y) aimed = c;
         if (d <= reach && v.z < 0 && Math.abs(ndc.x) < out && Math.abs(ndc.y) < out) close = true;

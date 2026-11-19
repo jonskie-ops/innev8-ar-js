@@ -153,28 +153,41 @@ export function ScanView({
   // A code "Seen from" one side (while the admin's switch is on) also needs the player on that side
   // first (lib/geo.ts onOpenSide): until then it's `blocked`, a wall or building in the way. Once it
   // shows, it stays. Worked out once per GPS reading; `entered`: when one last came in range (by the GPS's clock).
-  const [range, setRange] = useState<{ at: number; ids: Set<string>; blocked: Set<string>; entered: number }>({
+  // With the admin's "See codes from farther away" on, a code also shows from that far off, `locked`:
+  // in the camera but not to be revealed until the player is within its own distance ("walk closer").
+  const [range, setRange] = useState<{ at: number; ids: Set<string>; blocked: Set<string>; locked: Set<string>; entered: number }>({
     at: 0,
     ids: new Set(),
     blocked: new Set(),
+    locked: new Set(),
     entered: 0,
   });
   if (fix && fix.at !== range.at) {
     const ids = new Set<string>();
     const blocked = new Set<string>();
+    const locked = new Set<string>();
+    const seeFar = settings.seeFar ?? 0;
     for (const { s, d } of ways) {
       const was = range.ids.has(s.id);
-      if (!(d <= s.radius || (was && d <= s.radius + Math.max(LEAVE_MARGIN, s.radius * 0.5)))) continue;
-      if (was || !settings.seenFrom || onOpenSide(s, fix, fix.accuracy)) ids.add(s.id);
+      const open = was || !settings.seenFrom || onOpenSide(s, fix, fix.accuracy);
+      if (!(d <= s.radius || (was && d <= s.radius + Math.max(LEAVE_MARGIN, s.radius * 0.5)))) {
+        // Farther than its own distance: seen from afar (and from its open side), locked
+        const far = seeFar > s.radius && (d <= seeFar || (range.locked.has(s.id) && d <= seeFar + LEAVE_MARGIN));
+        if (far && open) locked.add(s.id);
+        continue;
+      }
+      if (open) ids.add(s.id);
       else blocked.add(s.id);
     }
     const entered = [...ids].some((id) => !range.ids.has(id)) ? fix.at : range.entered;
-    setRange({ at: fix.at, ids, blocked, entered });
+    setRange({ at: fix.at, ids, blocked, locked, entered });
   }
   const inRange = gps ? range.ids : new Set<string>();
   const nearRef = useRef<Near[]>([]);
   useEffect(() => {
-    nearRef.current = ways.filter((w) => range.ids.has(w.s.id)).map((w) => ({ station: w.s, bearing: w.b, distance: w.d, accuracy: fix?.accuracy ?? 0 }));
+    nearRef.current = ways
+      .filter((w) => range.ids.has(w.s.id) || range.locked.has(w.s.id))
+      .map((w) => ({ station: w.s, bearing: w.b, distance: w.d, accuracy: fix?.accuracy ?? 0, locked: range.locked.has(w.s.id) }));
     stageRef.current?.setNearby(nearRef.current);
     // (ways: worked out from the same reading as range)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -269,9 +282,12 @@ export function ScanView({
     // (walking to a code: its meter says how far, so nothing here covers the radar)
     hint = anyBlocked
       ? "Something's in the way. Find a way around to see the QR code."
-      : aim
-        ? null
-        : "Walk around the venue: QR codes show when you're near them.";
+      : range.locked.size && guide?.away
+        ? // A code seen from afar, in view: how far to walk before it can be collected
+          `A QR code is about ${Math.max(1, Math.round(guide.away))} m ahead: walk closer to collect it`
+        : aim
+          ? null
+          : "Walk around the venue: QR codes show when you're near them.";
   else if (phase === "searching") {
     const away = guide?.away;
     hint = away ? (

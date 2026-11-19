@@ -241,6 +241,12 @@ export type Settings = {
   randomSpots: boolean;
   /** On: a code with a "Seen from" side (Station.seen) shows only to players standing on that side. */
   seenFrom: boolean;
+  /**
+   * The admin's "See codes from farther away": players see a code in the scanner from this many metres
+   * away, locked ("walk closer"), and collect it within its own distance (radius). Null: off (or before
+   * that update), a code shows only within its own distance.
+   */
+  seeFar?: number | null;
 };
 
 /**

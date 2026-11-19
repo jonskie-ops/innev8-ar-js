@@ -212,6 +212,7 @@ function parseHunt(v: unknown): Hunt | null {
       claimPlace: s.claimPlace,
       randomSpots: s.randomSpots === true,
       seenFrom: s.seenFrom === true,
+      seeFar: num(s.seeFar) && s.seeFar > 0 ? s.seeFar : null,
     },
   };
 }

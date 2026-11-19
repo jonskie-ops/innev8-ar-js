@@ -158,6 +158,8 @@ export async function loadHunt(): Promise<{ hunt: Hunt | null; at: string }> {
           claimPlace: s.claim_place,
           randomSpots: s.random_spots === true,
           seenFrom: s.seen_from === true,
+          // See codes from farther away (a database without that update: off)
+          seeFar: s.far_view === true && (n(s.see_metres) ?? 0) > 0 ? n(s.see_metres) : null,
         },
       },
     };
@@ -216,4 +218,13 @@ type PlaceRow = {
   outlines: { buildings?: string; roads?: string; grounds?: string } | null;
 };
 type SponsorRow = { id: string; name: string; badge_path: string | null };
-type SettingsRow = { starts_at: string; ends_at: string; test_mode: boolean; claim_place: string; random_spots?: boolean; seen_from?: boolean };
+type SettingsRow = {
+  starts_at: string;
+  ends_at: string;
+  test_mode: boolean;
+  claim_place: string;
+  random_spots?: boolean;
+  seen_from?: boolean;
+  far_view?: boolean;
+  see_metres?: number | string;
+};
