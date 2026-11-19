@@ -5,16 +5,19 @@ import { pad2 } from "@/lib/dom";
 import { bearing, howFar, metresBetween, onOpenSide } from "@/lib/geo";
 import { unlocked, type Station } from "@/lib/hunt";
 import { getHunt, useHunt } from "@/lib/huntStore";
+import { savedHunter } from "@/lib/hunter";
+import { inAppBrowser, type InApp } from "@/lib/inapp";
 import { retryLocation, useLocation, type LocationState } from "@/lib/location";
 import { COLLECT_HIT_MS } from "@/lib/sfx";
 import { useProgress } from "@/lib/store";
 import { ScanQufoo, type Line } from "../Mascot";
 import { AllFoundCard } from "./AllFoundCard";
 import type { ArMode, ArPhase, ArStage, CamState, Guide, Near } from "./ar/stage";
-import { ArrowRightIcon, CameraOffIcon, CloseIcon, LockIcon, PinOffIcon } from "./icons";
+import { ArrowRightIcon, CameraOffIcon, CloseIcon, HelpIcon, LockIcon, PinOffIcon } from "./icons";
 import { NoCodes } from "./NoCodes";
 import { QrTile } from "./QrTile";
 import { SoundButton } from "./SoundButton";
+import { TroubleSheet, type Trouble } from "./TroubleSheet";
 
 /** Random spots: codes hidden around the player each time the scanner opens. */
 const PER_SCAN = 3;
@@ -51,6 +54,9 @@ async function cameraEarly(): Promise<MediaStream | null> {
     audio: false,
   });
 }
+
+/** How long a problem lasts before the scanner offers help (ms): weak GPS, no compass, a code here not showing. */
+const TROUBLE_AFTER = { weak: 30_000, compass: 25_000, motion: 8_000, stuck: 60_000 };
 
 /** Why there's no location yet, as the scanner says it. */
 const LOCATION_HINT: Record<Exclude<LocationState["status"], "on">, string> = {
@@ -402,6 +408,50 @@ export function ScanView({
       ? NO_LOCATION[loc.status]
       : null;
 
+  // ---- "Having trouble?": what's going wrong now. Some show at once (camera, location, another
+  // app's browser); others once they've lasted a while (weak GPS, no compass, a code here not showing).
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [inApp] = useState<InApp | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : inAppBrowser(navigator.userAgent, matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true),
+  );
+  const searching = phase === "searching";
+  const now = {
+    weak: gps && searching && weak,
+    compass: gps && searching && xr !== "on" && Boolean(guide?.sensors) && compass === null,
+    motion: searching && xr !== "on" && guide !== null && !guide.sensors,
+    stuck: gps && searching && aimIn,
+  };
+  const latest = useRef(now);
+  useEffect(() => {
+    latest.current = now;
+  });
+  const [late, setLate] = useState({ weak: false, compass: false, motion: false, stuck: false });
+  useEffect(() => {
+    const since = { weak: 0, compass: 0, motion: 0, stuck: 0 };
+    const t = window.setInterval(() => {
+      const at = Date.now();
+      const next = { ...late };
+      for (const k of ["weak", "compass", "motion", "stuck"] as const) {
+        since[k] = latest.current[k] ? since[k] || at : 0;
+        next[k] = since[k] > 0 && at - since[k] >= TROUBLE_AFTER[k];
+      }
+      setLate((p) => (p.weak === next.weak && p.compass === next.compass && p.motion === next.motion && p.stuck === next.stuck ? p : next));
+    }, 2000);
+    return () => clearInterval(t);
+    // (set up once; reads the latest through the ref)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const troubles: Trouble[] = [];
+  if (inApp) troubles.push({ kind: "inapp", where: inApp });
+  if (xr !== "on" && (cam === "denied" || cam === "unavailable")) troubles.push({ kind: "camera", blocked: cam === "denied" });
+  if (noLocation && loc.status !== "insecure") troubles.push({ kind: "location", ...noLocation });
+  if (late.weak && now.weak && fix) troubles.push({ kind: "weak", accuracy: fix.accuracy });
+  if (late.motion && now.motion) troubles.push({ kind: "motion" });
+  if (late.compass && now.compass) troubles.push({ kind: "compass" });
+  if (late.stuck && now.stuck && aim) troubles.push({ kind: "stuck", num: pad2(aim.s.num) });
+
   return (
     <div
       ref={rootRef}
@@ -430,6 +480,9 @@ export function ScanView({
             <CloseIcon />
           </button>
           <SoundButton />
+          <button type="button" className="icon-btn" onClick={() => setHelpOpen(true)} aria-label="Having trouble? Quick fixes">
+            <HelpIcon />
+          </button>
         </span>
         {fix && (testMode || weak) && (
           <span className={weak ? "chip chip--gps is-weak" : "chip chip--gps"}>
@@ -532,6 +585,28 @@ export function ScanView({
         <p className="scan__hint" aria-live="polite">
           {hint}
         </p>
+      )}
+
+      {/* Something's wrong: help, offered (the ? at the top is always there) */}
+      {troubles.length > 0 && !helpOpen && !allFound && (
+        <button type="button" className={noLocation ? "scan__trouble is-low" : "scan__trouble"} onClick={() => setHelpOpen(true)}>
+          <HelpIcon />
+          Having trouble? Tap here
+        </button>
+      )}
+      {helpOpen && (
+        <TroubleSheet
+          troubles={troubles}
+          fixes={{
+            camera: () => stageRef.current?.retryCamera(),
+            location: retryLocation,
+            compass: gps ? () => stageRef.current?.recalibrate() : null,
+            codes: () => stageRef.current?.replace(),
+          }}
+          tag={savedHunter()?.tag ?? null}
+          claimPlace={settings.claimPlace}
+          onClose={() => setHelpOpen(false)}
+        />
       )}
 
       <div className="scan__bottom">

@@ -2994,6 +2994,108 @@ button.psec__head {
   text-decoration: none;
 }
 
+/* "Having trouble?": offered under the scanner's hint when something's going wrong */
+.scan__trouble {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + min(34vw, 150px) + 56px);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 8px 14px;
+  border: 1px solid rgba(214, 181, 109, 0.55);
+  border-radius: 999px;
+  background: rgba(2, 6, 17, 0.78);
+  color: var(--gold);
+  font: 700 12.5px/1.2 var(--font-h);
+  white-space: nowrap;
+  transform: translateX(-50%);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+/* (with the no-location box over the frame: below it) */
+.scan__trouble.is-low {
+  top: auto;
+  bottom: calc(190px + env(safe-area-inset-bottom));
+}
+.scan__trouble svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The "Having trouble?" pop-up: what's wrong now and its fix, other quick fixes, the desk */
+.trouble {
+  justify-items: stretch;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  text-align: left;
+}
+.trouble .catch__eyebrow,
+.trouble h2 {
+  justify-self: center;
+  text-align: center;
+}
+.trouble h2 {
+  font-size: 24px;
+}
+.trouble__now {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+.trouble__now li {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid rgba(var(--rc), 0.4);
+  border-radius: 16px;
+  background: rgba(var(--rc), 0.08);
+}
+.trouble__now b {
+  color: #fff;
+  font: 700 14.5px/1.3 var(--font-h);
+}
+.trouble__now p,
+.trouble__more p,
+.trouble__desk {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.trouble__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.trouble__btns a.btn {
+  text-decoration: none;
+}
+.trouble__more {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.trouble__desk {
+  margin: 6px 0 10px;
+}
+.trouble__desk b {
+  color: #fff;
+}
+.trouble__tag {
+  font-family: var(--font-m);
+  letter-spacing: 0.12em;
+}
+
 /* Toast */
 .toast {
   position: fixed;

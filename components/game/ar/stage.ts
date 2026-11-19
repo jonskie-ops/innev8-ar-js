@@ -80,6 +80,12 @@ export type ArStage = {
    * camera, the view and north as they are. Nothing happens otherwise.
    */
   resume: () => void;
+  /** "Having trouble?": start the camera again (not in full AR). */
+  retryCamera: () => void;
+  /** "Having trouble?": forget north and learn it again from the compass (GPS spots; not in full AR). */
+  recalibrate: () => void;
+  /** "Having trouble?": place the codes around the player again (while searching). */
+  replace: () => void;
   dispose: () => void;
 };
 
@@ -1043,6 +1049,23 @@ export async function createArStage(
       // that isn't hidden yet: all placed again, with it)
       if (gpsMode) placeGps();
       else if (hidden.some((s) => !codes.some((c) => c.station === s))) place();
+    },
+    retryCamera: () => {
+      if (xr || disposed) return;
+      clearTimeout(retryTimer);
+      stopCamera();
+      void startCamera(1);
+    },
+    recalibrate: () => {
+      if (xr || disposed || !gpsMode) return;
+      northYaw = null;
+      northN = 0;
+      // (somewhere ahead until north is known again, a few readings on)
+      if (phase === "searching" && !active) placeGps(true);
+    },
+    replace: () => {
+      if (disposed || phase !== "searching" || active) return;
+      place();
     },
     startXr: () => {
       if (xr) return;

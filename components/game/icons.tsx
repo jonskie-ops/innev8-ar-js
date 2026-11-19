@@ -171,6 +171,16 @@ export function ChevronDownIcon() {
   );
 }
 
+/** A question mark in a circle: help */
+export function HelpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.7M12 16.8h.01" />
+    </svg>
+  );
+}
+
 export function InfoIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
