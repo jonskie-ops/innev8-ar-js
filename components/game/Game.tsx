@@ -62,6 +62,20 @@ export function Game({ phase }: { phase: Phase }) {
 
   // Sign-up needs both steps; older saves have a name but no province yet.
   const signedUp = p.onboarded && p.province !== "";
+  // Started over (the organisers deleted this player, lib/hunter.ts): nothing from before is still
+  // open once they've signed up again
+  const [wasSignedUp, setWasSignedUp] = useState(signedUp);
+  if (wasSignedUp !== signedUp) {
+    setWasSignedUp(signedUp);
+    if (!signedUp) {
+      setTab("map");
+      setFocus(null);
+      setScan(null);
+      setCaught(null);
+      setOverlay(null);
+      setTask(null);
+    }
+  }
   const { hunt, known } = useHunt();
   const me = standing(hunt, known, p.found, p.earned);
   const { count, total } = me;

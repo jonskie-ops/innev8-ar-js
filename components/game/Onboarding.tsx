@@ -74,6 +74,11 @@ export function Onboarding() {
               <label htmlFor="hunter-name">What&apos;s your name?</label>
             </h1>
             <p className="wizard__lead">This is the name other users will see.</p>
+            {saved.wasReset && (
+              <p className="wizard__reset" role="status">
+                The organisers reset your game. Sign up to start again.
+              </p>
+            )}
             <input
               id="hunter-name"
               className="wizard__input"

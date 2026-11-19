@@ -32,6 +32,8 @@ export type Progress = {
    * Missing for saves from before this was kept: those codes were all collected in test mode.
    */
   testFinds?: string[];
+  /** The organisers deleted this player, so the game started over: sign-up says so (until it's done). */
+  wasReset?: boolean;
 };
 
 /** The map without those ids. */
@@ -82,10 +84,12 @@ export function useProgress() {
 }
 
 export const progress = {
+  /** What's saved now (outside React). */
+  get: read,
   /** Finishes sign-up. */
   start(name: string, province: string) {
     const p = read();
-    write({ ...p, name: name.trim().slice(0, 20), province, onboarded: true, tour: p.tour ?? [] });
+    write({ ...p, name: name.trim().slice(0, 20), province, onboarded: true, tour: p.tour ?? [], wasReset: undefined });
   },
   /** Qufoo has explained this part of the menu. */
   toured(stop: string) {
@@ -159,6 +163,13 @@ export const progress = {
   /** Clears collected QR codes; the player keeps their name. */
   reset() {
     write({ ...read(), found: {}, testFinds: [], earned: {} });
+  },
+  /**
+   * The organisers deleted this player: everything is forgotten (name, province, codes, points, tasks,
+   * the tour) and the game starts over at sign-up, which says why.
+   */
+  restart() {
+    write({ ...EMPTY, wasReset: true });
   },
   /** Forgets the player entirely, back to the first-launch name prompt (test tool). */
   clear() {

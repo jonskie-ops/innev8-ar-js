@@ -54,10 +54,13 @@ export const savedHunter = () => {
 
 let joining: Promise<Hunter | null> | null = null;
 let remembered = false;
+/** The hunter just taken back from the cookie (the game's storage was cleared), until the database has answered for it */
+let adopted: string | null = null;
 /**
  * This phone's hunter ID: the saved one, or the one kept in its cookie (the game's storage cleared:
  * the same hunter again, with the name and province given now), or a new one (online), or null (no
- * signal yet).
+ * signal yet, or not signed up: after the organisers deleted this player, only signing up again
+ * makes a new one).
  */
 export function joinHunter(name: string, province: string): Promise<Hunter | null> {
   const have = savedHunter();
@@ -69,19 +72,20 @@ export function joinHunter(name: string, province: string): Promise<Hunter | nul
     }
     return Promise.resolve(have);
   }
-  if (!name.trim() || !province) return Promise.resolve(null);
+  if (!name.trim() || !province || !progress.get().onboarded) return Promise.resolve(null);
   joining ??= (async () => {
     const kept = await call<Hunter>("remembered", {});
     if (!("error" in kept)) {
       save(KEY, kept);
       remembered = true;
+      adopted = kept.id;
       updateHunter(name, province);
       return kept;
     }
     // (no signal: not a new hunter yet, it may be kept)
     if (kept.error !== "none") return null;
     const r = await call<Hunter>("join", { name: name.trim().slice(0, 20), province });
-    if ("error" in r) return null;
+    if ("error" in r || !progress.get().onboarded) return null;
     save(KEY, r);
     remembered = true;
     return r;
@@ -97,8 +101,9 @@ export function updateHunter(name: string, province: string) {
   if (h) void call("update", { id: h.id, secret: h.secret, name: name.trim().slice(0, 20), province });
 }
 
-/** A fresh start (the organisers deleted this hunter): a new hunter next time. */
+/** This phone's hunter ID and everything kept with it forgotten: a new hunter next time. */
 export function forgetHunter() {
+  remembered = false;
   try {
     localStorage.removeItem(KEY);
     localStorage.removeItem(MET_KEY);
@@ -165,7 +170,7 @@ export function sendFinds(): Promise<void> {
     const back: Record<ReturnedFinds["why"], string[]> = { closed: [], code: [] };
     for (const f of queued()) {
       const r = await call<{ ok: true; points?: number }>("find", { id: me.id, secret: me.secret, ...f });
-      deletedHunter(r);
+      deletedHunter(r, me);
       // The points this find earned (points can drop as more people find a code)
       if ("ok" in r && typeof r.points === "number" && Number.isFinite(r.points)) progress.earn(f.code, r.points);
       // No signal, or a new hunter ID to make first: try again later
@@ -198,7 +203,7 @@ export async function loadPrizes(name: string, province: string): Promise<PrizeC
   if (!hunter) return null;
   await sendFinds();
   const r = await call<{ prizes: PrizeClaim[] }>("prizes", { id: hunter.id, secret: hunter.secret });
-  deletedHunter(r);
+  deletedHunter(r, hunter);
   return "prizes" in r && Array.isArray(r.prizes) ? r.prizes : null;
 }
 
@@ -216,7 +221,7 @@ export async function loadBoard(name: string, province: string): Promise<Board |
   if (!hunter) return null;
   await sendFinds();
   const r = await call<Board>("board", { id: hunter.id, secret: hunter.secret });
-  deletedHunter(r);
+  deletedHunter(r, hunter);
   return "top" in r && Array.isArray(r.top) ? r : null;
 }
 
@@ -226,11 +231,19 @@ export const prizeQrText = (code: string) => `INNEV8-PRIZE:${code}`;
 export const claimText = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
 
 /**
- * The database doesn't know this phone's hunter ID (the organisers deleted it): forget it, so the
- * game makes a new one the next time it opens (the codes found stay).
+ * The database doesn't know this phone's hunter ID: the organisers deleted this player, so the game
+ * starts over (everything forgotten, back to sign-up; a new hunter once they sign up again). One just
+ * taken back from the cookie (they had cleared the game and signed up again since) is only forgotten,
+ * and a new one made for them. An answer about an ID the phone no longer has changes nothing.
  */
-function deletedHunter(r: unknown) {
-  if (r && typeof r === "object" && "error" in r && r.error === "unknown") forgetHunter();
+function deletedHunter(r: unknown, asked: Hunter) {
+  const error = r && typeof r === "object" && "error" in r ? r.error : null;
+  const fresh = adopted === asked.id;
+  // (the database has answered for the one taken back from the cookie: from now on it's theirs)
+  if (fresh && error !== "offline" && error !== "server" && error !== "bad") adopted = null;
+  if (error !== "unknown" || savedHunter()?.id !== asked.id) return;
+  forgetHunter();
+  if (!fresh) progress.restart();
 }
 
 export const minuteNow = () => Math.floor(Date.now() / 60_000);
@@ -259,7 +272,7 @@ export type MeetResult =
 /** Meeting the hunter whose tag and PIN these are. */
 export async function meetHunter(me: Hunter, tag: string, pin: string): Promise<MeetResult> {
   const r = await call<MeetResult>("meet", { id: me.id, secret: me.secret, tag, pin });
-  deletedHunter(r);
+  deletedHunter(r, me);
   if ("ok" in r && r.ok) {
     const met = savedMeetings();
     if (!met.some((m) => m.id === r.hunter.id)) save(MET_KEY, [...met, { ...r.hunter, at: new Date().toISOString() }]);
@@ -275,7 +288,7 @@ export const savedMeetings = () => {
 /** Everyone they've met, either of them scanning (kept for offline; the saved list without a signal). */
 export async function loadMeetings(me: Hunter): Promise<Met[]> {
   const r = await call<Met[]>("meetings", { id: me.id, secret: me.secret });
-  deletedHunter(r);
+  deletedHunter(r, me);
   if (!Array.isArray(r)) return savedMeetings();
   save(MET_KEY, r);
   return r;
@@ -283,7 +296,7 @@ export async function loadMeetings(me: Hunter): Promise<Met[]> {
 
 /**
  * This phone's hunter ID and who they've met (see joinHunter and loadMeetings). One the organisers
- * deleted is replaced by a new one now.
+ * deleted starts the game over (no hunter until they sign up again).
  */
 export async function myHunter(name: string, province: string): Promise<{ hunter: Hunter | null; met: Met[] }> {
   let hunter = await joinHunter(name, province);
