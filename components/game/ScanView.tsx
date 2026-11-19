@@ -9,6 +9,7 @@ import { savedHunter } from "@/lib/hunter";
 import { inAppBrowser, type InApp } from "@/lib/inapp";
 import { retryLocation, useLocation, type LocationState } from "@/lib/location";
 import { COLLECT_HIT_MS } from "@/lib/sfx";
+import { useMuted } from "@/lib/sound";
 import { useProgress } from "@/lib/store";
 import { ScanQufoo, type Line } from "../Mascot";
 import { AllFoundCard } from "./AllFoundCard";
@@ -56,7 +57,7 @@ async function cameraEarly(): Promise<MediaStream | null> {
 }
 
 /** How long a problem lasts before the scanner offers help (ms): weak GPS, no compass, a code here not showing. */
-const TROUBLE_AFTER = { weak: 30_000, compass: 25_000, motion: 8_000, stuck: 60_000 };
+const TROUBLE_AFTER = { weak: 30_000, compass: 25_000, stuck: 60_000 };
 
 /** Why there's no location yet, as the scanner says it. */
 const LOCATION_HINT: Record<Exclude<LocationState["status"], "on">, string> = {
@@ -382,6 +383,8 @@ export function ScanView({
 
   const camMessage = cam && xr !== "on" ? CAM_MESSAGE[cam] : undefined;
   // Qufoo sniffs while you search (you hear him sniff), and speaks up once a code is near
+  // Sound off: Qufoo stays away too (his lines are extras; the hint says what to do)
+  const muted = useMuted();
   const qufooSays: Line | null =
     phase === "searching"
       ? near
@@ -420,24 +423,23 @@ export function ScanView({
   const now = {
     weak: gps && searching && weak,
     compass: gps && searching && xr !== "on" && Boolean(guide?.sensors) && compass === null,
-    motion: searching && xr !== "on" && guide !== null && !guide.sensors,
     stuck: gps && searching && aimIn,
   };
   const latest = useRef(now);
   useEffect(() => {
     latest.current = now;
   });
-  const [late, setLate] = useState({ weak: false, compass: false, motion: false, stuck: false });
+  const [late, setLate] = useState({ weak: false, compass: false, stuck: false });
   useEffect(() => {
-    const since = { weak: 0, compass: 0, motion: 0, stuck: 0 };
+    const since = { weak: 0, compass: 0, stuck: 0 };
     const t = window.setInterval(() => {
       const at = Date.now();
       const next = { ...late };
-      for (const k of ["weak", "compass", "motion", "stuck"] as const) {
+      for (const k of ["weak", "compass", "stuck"] as const) {
         since[k] = latest.current[k] ? since[k] || at : 0;
         next[k] = since[k] > 0 && at - since[k] >= TROUBLE_AFTER[k];
       }
-      setLate((p) => (p.weak === next.weak && p.compass === next.compass && p.motion === next.motion && p.stuck === next.stuck ? p : next));
+      setLate((p) => (p.weak === next.weak && p.compass === next.compass && p.stuck === next.stuck ? p : next));
     }, 2000);
     return () => clearInterval(t);
     // (set up once; reads the latest through the ref)
@@ -448,7 +450,6 @@ export function ScanView({
   if (xr !== "on" && (cam === "denied" || cam === "unavailable")) troubles.push({ kind: "camera", blocked: cam === "denied" });
   if (noLocation && loc.status !== "insecure") troubles.push({ kind: "location", ...noLocation });
   if (late.weak && now.weak && fix) troubles.push({ kind: "weak", accuracy: fix.accuracy });
-  if (late.motion && now.motion) troubles.push({ kind: "motion" });
   if (late.compass && now.compass) troubles.push({ kind: "compass" });
   if (late.stuck && now.stuck && aim) troubles.push({ kind: "stuck", num: pad2(aim.s.num) });
 
@@ -629,7 +630,7 @@ export function ScanView({
             )}
           </div>
           {/* No QR codes in the game: nothing for him to smell, so he stays away */}
-          {!failed && !none && phase !== "loading" && <ScanQufoo say={qufooSays} />}
+          {!failed && !none && !muted && phase !== "loading" && <ScanQufoo say={qufooSays} />}
         </div>
         <div className="scan__codes" role="group" aria-label="Choose a QR code to look for">
           {stations.map((s, i) => {

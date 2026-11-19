@@ -3,8 +3,7 @@
 import { useState, type ComponentType } from "react";
 import { useBack } from "@/lib/back";
 import { chromeLink, type InApp } from "@/lib/inapp";
-import { askMotion } from "@/lib/motion";
-import { CameraIcon, CompassIcon, CopyIcon, LocateIcon, MotionIcon, OpenIcon, ReloadIcon, ScanIcon } from "./icons";
+import { CameraIcon, CompassIcon, CopyIcon, LocateIcon, OpenIcon, ReloadIcon, ScanIcon } from "./icons";
 
 /** What the scanner sees going wrong now (the first fix in the pop-up), most pressing first. */
 export type Trouble =
@@ -12,7 +11,6 @@ export type Trouble =
   | { kind: "camera"; blocked: boolean }
   | { kind: "location"; title: string; text: string }
   | { kind: "weak"; accuracy: number }
-  | { kind: "motion" }
   | { kind: "compass" }
   | { kind: "stuck"; num: string };
 
@@ -37,11 +35,6 @@ type Fix = {
   /** A link instead of a button */
   href?: string;
 };
-
-/** iPhone asks before the game may follow the phone's movement: a button can ask again. */
-const canAskMotion = () =>
-  typeof window !== "undefined" &&
-  typeof (window.DeviceOrientationEvent as unknown as { requestPermission?: unknown } | undefined)?.requestPermission === "function";
 
 /** One fix as a tile: a glowing icon, its name, and when it helps. `wide`: the fix for what's wrong now. */
 function FixTile({ fix, wide, onRun }: { fix: Fix; wide?: boolean; onRun: (f: Fix) => void }) {
@@ -104,9 +97,6 @@ export function TroubleSheet({
     run: fixes.compass,
   };
   const codes: Fix = { id: "codes", label: "Show the codes again", sub: "A code is here but hidden", Icon: ScanIcon, tone: "cyan", run: fixes.codes };
-  const motion: Fix | null = canAskMotion()
-    ? { id: "motion", label: "Allow motion", sub: "So the view follows your phone", Icon: MotionIcon, tone: "turq", run: askMotion }
-    : null;
   const reload: Fix = { id: "reload", label: "Reload the game", sub: "Start fresh: nothing is lost", Icon: ReloadIcon, tone: "gold", run: () => location.reload(), keep: true };
   const copy: Fix = {
     id: "copy",
@@ -152,13 +142,6 @@ export function TroubleSheet({
           title: `Your GPS is weak (±${t.accuracy} m)`,
           text: "Step into the open, away from walls and roofs, and stand still for a few seconds. On iPhone, check Precise Location is on.",
           fixes: [where],
-        };
-      case "motion":
-        return {
-          key: t.kind,
-          title: "The scanner can't follow your phone",
-          text: motion ? "Tap Allow motion, then choose Allow." : "Drag the screen to look around instead.",
-          fixes: motion ? [motion] : [],
         };
       case "compass":
         return {

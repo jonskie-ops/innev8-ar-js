@@ -191,16 +191,6 @@ export function CopyIcon() {
   );
 }
 
-/** A phone tilting: the motion sensors */
-export function MotionIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="8" y="4" width="8" height="16" rx="2" />
-      <path d="M4.5 8.5a8 8 0 0 0 0 7M19.5 8.5a8 8 0 0 1 0 7M11 17h2" />
-    </svg>
-  );
-}
-
 /** A box with an arrow out of it: open elsewhere */
 export function OpenIcon() {
   return (
