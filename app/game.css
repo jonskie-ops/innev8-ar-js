@@ -2408,12 +2408,12 @@ button.psec__head {
 .scan__bottom button {
   pointer-events: auto;
 }
-/* Just above the scan frame (the frame is min(68vw, 300px) square, centred), on a soft dark pill so
+/* Just below the scan frame (the frame is min(68vw, 300px) square, centred), on a soft dark pill so
    it reads over the camera */
 .scan__hint {
   position: absolute;
   left: 50%;
-  bottom: calc(50% + min(34vw, 150px) + 14px);
+  top: calc(50% + min(34vw, 150px) + 14px);
   z-index: 2;
   width: max-content;
   max-width: calc(100% - 32px);

@@ -338,9 +338,6 @@ export function ScanView({
             : phase === "done" && !none && !allFound
               ? { text: `You found all ${stations.length}! Amazing!` }
               : null;
-  // Test aid: how this phone follows the player's movement
-  const tracking =
-    xr === "on" ? "WebXR tracking" : cam === "on" ? "Camera tracking" : cam && cam !== "starting" ? "No camera" : null;
   // The arrow on the meter: which way the code is, from where the camera faces. In range there's no
   // arrow: the code is around the player in the view now (GPS is too rough up close to point at it).
   const turn = aim && !aimIn && compass !== null ? ((aim.b - compass + 540) % 360) - 180 : null;
@@ -380,7 +377,6 @@ export function ScanView({
           </button>
           <SoundButton />
         </span>
-        {testMode && tracking && <span className="chip chip--mode">{tracking}</span>}
         {fix && (testMode || weak) && (
           <span className={weak ? "chip chip--gps is-weak" : "chip chip--gps"}>
             {weak ? "Weak GPS" : "GPS"} ±{fix.accuracy} m
@@ -457,7 +453,7 @@ export function ScanView({
         </span>
       )}
 
-      {/* What's happening, just above the scan frame */}
+      {/* What's happening (no location: over the scan frame; the hint: just below it) */}
       {noLocation && (
         <div className={loc.status === "lost" ? "scan__noloc is-lost" : "scan__noloc"} role="alert">
           <PinOffIcon />
