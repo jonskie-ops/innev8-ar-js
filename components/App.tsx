@@ -5,13 +5,15 @@ import { AppUpdate } from "./AppUpdate";
 import { useEventPhase } from "./Countdown";
 import { CountdownSection } from "./CountdownSection";
 import { Game } from "./game/Game";
+import { InAppNotice } from "./InAppNotice";
 import { Mascot } from "./Mascot";
 
 /**
  * What shows after the splash. Production: "The countdown is on." until the summit starts, then
  * the hunt. Test mode: the hunt right away, with the countdown moved to the side. In the hunt the
  * mascot comes up to say hello once the splash has cleared (or once the hunt opens, if the app was
- * already on the countdown); the countdown has no mascot. On top: "a new version is ready".
+ * already on the countdown); the countdown has no mascot. On top: "a new version is ready", and (opened
+ * inside Messenger, Facebook…) how to open the game in Safari or Chrome instead.
  * The dates and test mode come from the admin; a first-ever open waits (under the splash) for them.
  */
 export function App() {
@@ -24,6 +26,7 @@ export function App() {
       {countdown ? <CountdownSection /> : <Game phase={phase} />}
       {!countdown && <Mascot />}
       <AppUpdate />
+      <InAppNotice />
     </>
   );
 }

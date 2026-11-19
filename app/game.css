@@ -2941,6 +2941,57 @@ button.psec__head {
   color: rgb(var(--rc));
 }
 
+/* Opened inside another app's browser: how to open the game in Safari or Chrome (over Qufoo too) */
+.modal--inapp {
+  z-index: 160;
+}
+.inapp {
+  text-align: left;
+}
+.inapp .catch__eyebrow,
+.inapp h2 {
+  justify-self: center;
+  text-align: center;
+}
+.inapp h2 {
+  font-size: 24px;
+}
+.inapp .catch__blurb {
+  text-align: center;
+}
+.inapp__steps {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  margin: 6px 0 4px;
+  padding-left: 22px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.inapp__steps b {
+  color: #fff;
+}
+.inapp__link {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.inapp__link input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--rc), 0.35);
+  border-radius: 12px;
+  background: rgba(var(--deep-rgb), 0.7);
+  color: var(--text);
+  font: 500 16px/1.2 var(--font-m);
+}
+.catch__btns a.btn {
+  text-decoration: none;
+}
+
 /* Toast */
 .toast {
   position: fixed;
