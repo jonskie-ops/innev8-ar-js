@@ -186,7 +186,8 @@ export function Game({ phase }: { phase: Phase }) {
       const worth = station.worth ?? station.points;
       const before = standing(hunt, known, p.found, p.earned);
       const after = standing(hunt, known, { ...p.found, [station.id]: Date.now() }, { ...p.earned, [station.id]: worth });
-      const won = hunt.prizes.find((pr) => !prizeProgress(pr, before).won && prizeProgress(pr, after).won) ?? null;
+      // (a prize that costs points isn't won by a catch: it's in their collection, to get with their points)
+      const won = hunt.prizes.find((pr) => pr.rule !== "cost" && !prizeProgress(pr, before).won && prizeProgress(pr, after).won) ?? null;
       progress.collect(station.id, hunt.settings.testMode, worth);
       queueFind(station.id, lastFix()); // (where the phone was: the database checks it was near)
       setScan(null);

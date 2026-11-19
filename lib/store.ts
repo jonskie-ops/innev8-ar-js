@@ -32,6 +32,11 @@ export type Progress = {
    * Missing for saves from before this was kept: those codes were all collected in test mode.
    */
   testFinds?: string[];
+  /**
+   * Prizes that cost points, as the database last said: the points the prize desk has taken, and the
+   * prizes they've been given. Missing until it has answered (nothing spent).
+   */
+  wallet?: { spent: number; given: string[] };
   /** The organisers deleted this player, so the game started over: a pop-up on sign-up says so (until it's closed). */
   wasReset?: boolean;
 };
@@ -170,6 +175,12 @@ export const progress = {
    */
   restart() {
     write({ ...EMPTY, wasReset: true });
+  },
+  /** The database's word on points spent at the prize desk, and the prizes given. */
+  setWallet(wallet: { spent: number; given: string[] }) {
+    const p = read();
+    if (p.wallet && p.wallet.spent === wallet.spent && p.wallet.given.join() === wallet.given.join()) return;
+    write({ ...p, wallet });
   },
   /** They've read the pop-up saying the game started over. */
   resetSeen() {

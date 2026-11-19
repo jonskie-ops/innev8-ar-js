@@ -53,13 +53,16 @@ export function PrizeCard({
       alive = false;
     };
   }, [fetchClaim]);
-  const qr = useMemo(() => (claim?.code && !claim.claimed ? qrPath(prizeQrText(claim.code)) : null), [claim]);
+  // A points prize: what it costs, and whether they're short of points for it now (the database's word)
+  const cost = prize.rule === "cost" ? (prize.value ?? 0) : null;
+  const short = cost !== null && !!claim && !claim.claimed && !claim.won;
+  const qr = useMemo(() => (claim?.code && !claim.claimed && !short ? qrPath(prizeQrText(claim.code)) : null), [claim, short]);
   const refused = claim && !claim.code ? refusedFinds().length : 0;
 
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="prize-title">
       <div className="catch catch--legendary prize">
-        <p className="catch__eyebrow">{claim?.claimed ? "Your prize" : "You won a prize"}</p>
+        <p className="catch__eyebrow">{claim?.claimed ? "Your prize" : cost !== null ? "Get it with your points" : "You won a prize"}</p>
         <div className="prize__photo">
           {prize.photo ? (
             <img src={prize.photo} alt="" width={480} height={300} decoding="async" style={photoStyle(prize)} />
@@ -87,11 +90,23 @@ export function PrizeCard({
                 <b>Claimed</b> at the {claimPlace}, {when.format(new Date(claim.claimed))}. Enjoy it, {progress.name}!
               </span>
             </p>
+          ) : short ? (
+            <p className="catch__blurb">
+              It costs <b>{cost!.toLocaleString("en-PH")} points</b>, and you don&apos;t have that many to spend right now. Find more QR codes
+              to earn them!
+            </p>
           ) : claim.code && qr ? (
             <>
-              <p className="catch__blurb">
-                Congratulations, {progress.name}! Show this at the <b>{claimPlace}</b> to claim it. It can be claimed once.
-              </p>
+              {cost !== null ? (
+                <p className="catch__blurb">
+                  Show this at the <b>{claimPlace}</b> to get it for <b>{cost.toLocaleString("en-PH")} points</b>: they&apos;re taken
+                  then. Your leaderboard score stays the same.
+                </p>
+              ) : (
+                <p className="catch__blurb">
+                  Congratulations, {progress.name}! Show this at the <b>{claimPlace}</b> to claim it. It can be claimed once.
+                </p>
+              )}
               <div className="prize__qr">
                 <svg viewBox={`0 0 ${qr.size} ${qr.size}`} shapeRendering="crispEdges" role="img" aria-label="Your prize QR">
                   <rect width={qr.size} height={qr.size} fill="#fff" />
@@ -111,7 +126,7 @@ export function PrizeCard({
         </div>
 
         <div className="catch__btns">
-          {(claim === null || (claim && !claim.code && !claim.claimed)) && (
+          {(claim === null || (claim && !claim.code && !claim.claimed && !short)) && (
             <button type="button" className="btn btn--ghost" onClick={ask}>
               Try again
             </button>

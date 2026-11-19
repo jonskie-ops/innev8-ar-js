@@ -202,9 +202,14 @@ export async function loadPrizes(name: string, province: string): Promise<PrizeC
   const { hunter } = await myHunter(name, province);
   if (!hunter) return null;
   await sendFinds();
-  const r = await call<{ prizes: PrizeClaim[] }>("prizes", { id: hunter.id, secret: hunter.secret });
+  const r = await call<{ prizes: PrizeClaim[]; standing?: { spent?: unknown } }>("prizes", { id: hunter.id, secret: hunter.secret });
   deletedHunter(r, hunter);
-  return "prizes" in r && Array.isArray(r.prizes) ? r.prizes : null;
+  if (!("prizes" in r) || !Array.isArray(r.prizes)) return null;
+  // Points spent at the prize desk, and the prizes given (a database without the points prizes update: none)
+  const spent = r.standing?.spent;
+  if (typeof spent === "number" && Number.isFinite(spent))
+    progress.setWallet({ spent, given: r.prizes.filter((c) => c.claimed).map((c) => c.id) });
+  return r.prizes;
 }
 
 /** A row of the leaderboard: their rank, name and province, points and codes found (`me`: this player). */

@@ -199,8 +199,11 @@ export const TASK_TEXT: Record<Exclude<Task, "none">, string> = {
 /** Can this code be looked for yet? (No task, or its task is done.) */
 export const unlocked = (s: Station, tasks: Record<string, unknown> | undefined) => s.task === "none" || Boolean(tasks?.[s.id]);
 
-/** Who wins a prize: every code, a number of codes, the legendary code, a number of points, or a code the organisers chose. */
-export type PrizeRule = "all" | "count" | "legendary" | "points" | "code";
+/**
+ * Who wins a prize: every code, a number of codes, the legendary code, a number of points, a code the
+ * organisers chose, or "cost": anyone with that many points to spend (the prize desk takes them).
+ */
+export type PrizeRule = "all" | "count" | "legendary" | "points" | "code" | "cost";
 export type Prize = {
   id: string;
   name: string;
@@ -208,7 +211,7 @@ export type Prize = {
   /** Its photo's address, if it has one. */
   photo: string | null;
   rule: PrizeRule;
-  /** The number of codes or points, for "count" and "points". */
+  /** The number of codes or points, for "count", "points" and "cost". */
   value: number | null;
   /** "code": the code to find (null if it's been deleted), and the organisers' sentence ("Get the Symphonics QR") */
   code?: string | null;
@@ -352,11 +355,16 @@ export function ruleText(p: Prize, total: number) {
       return `Reach ${v.toLocaleString("en-PH")} points`;
     case "code":
       return p.text || "Find a special QR code";
+    case "cost":
+      return `Costs ${v.toLocaleString("en-PH")} points`;
   }
 }
 
-/** How far a player is toward a prize (0 to 1), and whether they've won it. */
-export function prizeProgress(p: Prize, s: Standing) {
+/**
+ * How far a player is toward a prize (0 to 1), and whether they've won it. A points prize: whether
+ * they have its points to spend (`spent`: the points the prize desk has taken for points prizes).
+ */
+export function prizeProgress(p: Prize, s: Standing, spent = 0) {
   const v = Math.max(1, p.value ?? 1);
   const part =
     p.rule === "all"
@@ -373,7 +381,9 @@ export function prizeProgress(p: Prize, s: Standing) {
             ? p.code && s.found[p.code]
               ? 1
               : 0
-            : s.score / v;
+            : p.rule === "cost"
+              ? Math.max(0, s.score - spent) / v
+              : s.score / v;
   const won = p.rule === "all" ? s.total > 0 && s.count >= s.total : part >= 1;
   return { part: Math.min(1, part), won };
 }

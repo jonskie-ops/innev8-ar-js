@@ -1,9 +1,10 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- prize photos come from the organisers' storage */
 
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { pad2 } from "@/lib/dom";
 import { photoStyle, prizeProgress, RARITY_LABEL, ruleText, standing, TASK_TEXT, unlocked, zoneName, type Prize, type Station } from "@/lib/hunt";
+import { loadPrizes } from "@/lib/hunter";
 import { useHunt } from "@/lib/huntStore";
 import { useProgress } from "@/lib/store";
 import { CheckIcon, DexIcon, GiftIcon, ListIcon, LockIcon, MapIcon, ScanIcon } from "./icons";
@@ -34,8 +35,16 @@ export function DexView({
   const { hunt, known } = useHunt();
   const [layout, setLayout] = useState<Layout>("list"); // always opens as a list
   const [open, setOpen] = useState<string | null>(null);
-  const { earned } = useProgress();
+  const { earned, wallet, name, province } = useProgress();
   const me = standing(hunt, known, found, earned);
+  // Prizes that cost points: what they have to spend (every point earned, less what the desk took),
+  // fresh from the database each time the collection opens
+  const spent = wallet?.spent ?? 0;
+  const toSpend = Math.max(0, me.score - spent);
+  const shop = hunt.prizes.some((p) => p.rule === "cost");
+  useEffect(() => {
+    if (shop) void loadPrizes(name, province);
+  }, [shop, name, province]);
   const { count, total, kept } = me;
   const codes = [...hunt.stations, ...kept];
   const off = new Set(kept.map((s) => s.id));
@@ -179,27 +188,42 @@ export function DexView({
         <section className="dex__prizes" aria-labelledby="dex-prizes">
           <h2 id="dex-prizes" className="dex__prizes-title">
             Prizes
+            {shop && <span className="dex__wallet">{toSpend.toLocaleString("en-PH")} pts to spend</span>}
           </h2>
           <ul className="quest-list">
             {hunt.prizes.map((pr) => {
-              const { part, won } = prizeProgress(pr, me);
+              const { part, won } = prizeProgress(pr, me, spent);
+              // A points prize: given to them already, or theirs to get with their points
+              const cost = pr.rule === "cost";
+              const got = cost && Boolean(wallet?.given.includes(pr.id));
+              const done = won || got;
               return (
-                <li key={pr.id} className={won ? "card quest prizeq is-done" : "card quest prizeq"}>
+                <li key={pr.id} className={done ? "card quest prizeq is-done" : "card quest prizeq"}>
                   <span className="prizeq__photo" aria-hidden="true">
                     {pr.photo ? <img src={pr.photo} alt="" loading="lazy" decoding="async" style={photoStyle(pr)} /> : <GiftIcon />}
                   </span>
                   <div className="quest__body">
                     <h2>{pr.name}</h2>
-                    <p>{won ? "You won it!" : ruleText(pr, total)}</p>
-                    {!won && (
+                    <p>
+                      {got
+                        ? "You got it!"
+                        : cost
+                          ? won
+                            ? `${ruleText(pr, total)}: you have enough`
+                            : ruleText(pr, total)
+                          : won
+                            ? "You won it!"
+                            : ruleText(pr, total)}
+                    </p>
+                    {!done && (
                       <div className="bar bar--thin">
                         <span style={{ width: `${part * 100}%` }}></span>
                       </div>
                     )}
                   </div>
-                  {won ? (
+                  {done ? (
                     <button type="button" className="btn btn--primary btn--sm" onClick={() => onPrize(pr)}>
-                      Claim
+                      {got ? "View" : cost ? "Get it" : "Claim"}
                     </button>
                   ) : (
                     <span className="quest__count">{Math.round(part * 100)}%</span>

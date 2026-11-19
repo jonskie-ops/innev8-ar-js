@@ -1164,8 +1164,23 @@ code {
   margin-top: 22px;
 }
 .dex__prizes-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
   margin: 0 0 10px;
   font: 800 18px/1.2 var(--font-h);
+}
+/* Points to spend on prizes that cost points */
+.dex__wallet {
+  padding: 4px 10px;
+  border: 1px solid rgba(214, 181, 109, 0.45);
+  border-radius: 999px;
+  background: rgba(214, 181, 109, 0.12);
+  color: var(--gold);
+  font: 700 13px/1.2 var(--font-h);
+  font-variant-numeric: tabular-nums;
 }
 .quest.prizeq {
   grid-template-columns: 52px 1fr auto;
