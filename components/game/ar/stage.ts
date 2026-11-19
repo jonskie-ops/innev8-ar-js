@@ -17,6 +17,8 @@ export type Guide = {
   blips: { angle: number; target: boolean }[];
   /** Which way to move toward the chosen code (or the closest one); null when it's in view. */
   turn: "left" | "right" | "up" | "down" | null;
+  /** `turn` points to the chosen code (else to another one: the chosen one isn't around here). */
+  toTarget: boolean;
   /** True when the phone's motion sensors steer the view; false means drag to look. */
   sensors: boolean;
   /** A code is on screen but too far to reveal: about how far it is (m). Walk closer. */
@@ -73,6 +75,11 @@ export type ArStage = {
    * lot about where it is while it's off screen.
    */
   setNearby: (near: Near[]) => void;
+  /**
+   * After a code is collected (and its card closed): back to searching for the rest, with the
+   * camera, the view and north as they are. Nothing happens otherwise.
+   */
+  resume: () => void;
   dispose: () => void;
 };
 
@@ -514,6 +521,7 @@ export async function createArStage(
     });
     const limits = xr ? DRIFT.xr : DRIFT.view;
     for (const n of nearby) {
+      if (!hidden.includes(n.station)) continue; // (collected since)
       const yaw = knowNorth() ? northYaw! - deg(n.bearing) : null;
       const d = gpsTarget(n);
       const had = codes.find((c) => c.station.id === n.station.id);
@@ -755,7 +763,7 @@ export async function createArStage(
     if (turn !== lastTurn || now - guideAt > 0.1) {
       guideAt = now;
       lastTurn = turn;
-      ev.onGuide({ blips, turn, sensors: sensors || xr, away });
+      ev.onGuide({ blips, turn, toTarget: Boolean(best?.target), sensors: sensors || xr, away });
     }
   };
 
@@ -1015,6 +1023,26 @@ export async function createArStage(
     setNearby: (near) => {
       nearby = near;
       if (gpsMode && phase === "searching") placeGps();
+    },
+    resume: () => {
+      if (phase !== "collecting" || !active?.got || disposed) return;
+      const got = active;
+      got.spot.remove(fx);
+      drop(got);
+      codes = codes.filter((c) => c !== got);
+      hidden = hidden.filter((s) => s !== got.station);
+      active = null;
+      aimFor = 0;
+      burstAt = -1;
+      burstMat.opacity = 0;
+      haloMat.opacity = 0;
+      glow.intensity = 0;
+      if (!hidden.length) return go("done");
+      go("searching");
+      // GPS: the codes in range now; random spots: the rest stay where they are (a code chosen since
+      // that isn't hidden yet: all placed again, with it)
+      if (gpsMode) placeGps();
+      else if (hidden.some((s) => !codes.some((c) => c.station === s))) place();
     },
     startXr: () => {
       if (xr) return;

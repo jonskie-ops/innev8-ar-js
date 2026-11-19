@@ -180,7 +180,7 @@ export function Game({ phase }: { phase: Phase }) {
     else open();
   };
   const onCatch = useCallback(
-    (station: Station) => {
+    (station: Station, stay = false) => {
       // Did this catch win a prize? (Won now, and not before it)
       // What it's worth to this finder as far as the phone knows (the database's answer replaces it)
       const worth = station.worth ?? station.points;
@@ -190,7 +190,9 @@ export function Game({ phase }: { phase: Phase }) {
       const won = hunt.prizes.find((pr) => pr.rule !== "cost" && !prizeProgress(pr, before).won && prizeProgress(pr, after).won) ?? null;
       progress.collect(station.id, hunt.settings.testMode, worth);
       queueFind(station.id, lastFix()); // (where the phone was: the database checks it was near)
-      setScan(null);
+      // The scanner stays open under the card (camera, view and arrows as they are), except in full
+      // AR, where only the scanner shows
+      if (!stay) setScan(null);
       setCaught({ station, won });
     },
     [hunt, known, p.found, p.earned],
@@ -281,6 +283,7 @@ export function Game({ phase }: { phase: Phase }) {
         <ScanView
           target={scan.target}
           found={p.found}
+          paused={caught !== null}
           onCatch={onCatch}
           onClose={closeScan}
           onDex={() => {
@@ -298,14 +301,16 @@ export function Game({ phase }: { phase: Phase }) {
           won={caught.won}
           onHunt={() => {
             setCaught(null);
-            openScan();
+            if (!scan) openScan(); // (still open: it carries on)
           }}
           onDex={() => {
             setCaught(null);
+            setScan(null);
             setTab("dex");
           }}
           onPrize={(prize) => {
             setCaught(null);
+            setScan(null);
             setOverlay({ prize });
           }}
         />

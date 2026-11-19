@@ -110,6 +110,7 @@ function pickHidden(stations: Station[], found: Record<string, number>, target?:
 export function ScanView({
   target,
   found,
+  paused = false,
   onCatch,
   onClose,
   onDex,
@@ -117,7 +118,16 @@ export function ScanView({
   /** The code the player came to look for (e.g. Find it): the meter and the radar point to it. */
   target?: Station;
   found: Record<string, number>;
-  onCatch: (station: Station) => void;
+  /**
+   * A code's card is up over the scanner (just collected): it carries on searching once it's closed,
+   * with the camera and everything as it was.
+   */
+  paused?: boolean;
+  /**
+   * A code was collected. `stay`: the scanner can stay open under its card (not in full AR, where
+   * only the scanner shows: it closes for the card).
+   */
+  onCatch: (station: Station, stay: boolean) => void;
   onClose: () => void;
   /** To their collection and prizes (from the pop-up once every code is found) */
   onDex: () => void;
@@ -161,8 +171,12 @@ export function ScanView({
   const loc = useLocation(gps);
   const fix = gps ? loc.fix : null;
   // Each code's distance and direction from the player, nearest first
+  // (collected while the scanner's open: gone from here)
   const ways = fix
-    ? hidden.gps.map((s) => ({ s, d: metresBetween(fix, s), b: bearing(fix, s) })).sort((a, b) => a.d - b.d)
+    ? hidden.gps
+        .filter((s) => !found[s.id])
+        .map((s) => ({ s, d: metresBetween(fix, s), b: bearing(fix, s) }))
+        .sort((a, b) => a.d - b.d)
     : [];
   // In range: within its distance, and staying in until a little past it (a GPS jump doesn't hide it).
   // A code "Seen from" one side (while the admin's switch is on) also needs the player on that side
@@ -197,16 +211,16 @@ export function ScanView({
     const entered = [...ids].some((id) => !range.ids.has(id)) ? fix.at : range.entered;
     setRange({ at: fix.at, ids, blocked, locked, entered });
   }
-  const inRange = gps ? range.ids : new Set<string>();
+  const inRange = gps ? new Set([...range.ids].filter((id) => !found[id])) : new Set<string>();
   const nearRef = useRef<Near[]>([]);
   useEffect(() => {
     nearRef.current = ways
       .filter((w) => range.ids.has(w.s.id) || range.locked.has(w.s.id))
       .map((w) => ({ station: w.s, bearing: w.b, distance: w.d, accuracy: fix?.accuracy ?? 0, locked: range.locked.has(w.s.id) }));
     stageRef.current?.setNearby(nearRef.current);
-    // (ways: worked out from the same reading as range)
+    // (ways: worked out from the same reading as range, and the codes found)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
+  }, [range, found]);
   useEffect(() => {
     if (range.entered) navigator.vibrate?.([60, 50, 60]); // one more in range
   }, [range.entered]);
@@ -214,16 +228,24 @@ export function ScanView({
     if (gps && loc.status === "lost") navigator.vibrate?.([250, 120, 250]); // its location just turned off
   }, [gps, loc.status]);
   // The code headed for: the one the player chose, else (GPS) the nearest still to find
-  const aimed = gps && !picked && ways[0] ? ways[0].s : chosen;
+  // (one collected while the scanner's open: the next one, as if none was chosen)
+  const still = chosen && !found[chosen.id] ? chosen : undefined;
+  const aimed = gps && (!picked || !still) && ways[0] ? ways[0].s : (still ?? open.find((s) => !found[s.id]));
+  const aimedRef = useRef(aimed);
   useEffect(() => {
+    aimedRef.current = aimed;
     stageRef.current?.setTarget(aimed);
   }, [aimed]);
 
   // The latest callbacks, for the AR stage that's set up once
-  const live = useRef({ onCatch, onClose });
+  const live = useRef({ onCatch, onClose, xr });
   useEffect(() => {
-    live.current = { onCatch, onClose };
+    live.current = { onCatch, onClose, xr };
   });
+  // A code's card closed: carry on searching (nothing to do if none was just collected)
+  useEffect(() => {
+    if (!paused) stageRef.current?.resume();
+  }, [paused]);
 
   // The 3D layer (and three.js) loads only when the scanner opens (and again, if the tester switches
   // to random spots). The camera is asked for at the same time, so the live picture shows while it
@@ -255,7 +277,7 @@ export function ScanView({
             },
             onCamera: setCam,
             onGuide: setGuide,
-            onCollect: (st) => live.current.onCatch(st),
+            onCollect: (st) => live.current.onCatch(st, live.current.xr !== "on"),
             onXr: setXr,
             onNear: setNear,
             onCompass: setCompass,
@@ -269,6 +291,7 @@ export function ScanView({
         if (!alive) return s.dispose();
         stageRef.current = s;
         s.setNearby(nearRef.current); // the location may have come first
+        s.setTarget(aimedRef.current); // (and the code headed for, if it changed while it loaded)
       })
       .catch(() => alive && setFailed(true));
     return () => {
@@ -292,7 +315,9 @@ export function ScanView({
   const none = !stations.length; // every location (or code) off in the admin: nothing to find
   const allFound = phase === "done" && !none && count === stations.length; // the pop-up says so
   const num = station ? `#${pad2(station.num)}` : "";
-  const help = testMode && phase === "searching" ? guide : null; // radar and arrows are a test aid
+  const help = testMode && phase === "searching" ? guide : null; // the radar is a test aid
+  // Which way to turn to a code that's around here (in range) but not on screen: for every player
+  const sideTurn = phase === "searching" ? (guide?.turn ?? null) : null;
   // The code the meter points to: the one headed for, if it's still to find
   const aim = gps && aimed && !found[aimed.id] ? ways.find((w) => w.s === aimed) : undefined;
   const aimIn = aim ? inRange.has(aim.s.id) : false;
@@ -321,11 +346,11 @@ export function ScanView({
     const away = guide?.away;
     hint = away ? (
       `A QR code is about ${Math.max(1, Math.round(away))} m ahead: walk closer`
-    ) : help?.turn ? (
-      help.turn === "left" || help.turn === "right" ? (
-        `${aimed ? `QR code #${pad2(aimed.num)}` : "A QR code"} ${TURN_HINT[help.turn]}`
+    ) : sideTurn ? (
+      sideTurn === "left" || sideTurn === "right" ? (
+        `${aimed && guide?.toTarget ? `QR code #${pad2(aimed.num)}` : "A QR code"} ${TURN_HINT[sideTurn]}`
       ) : (
-        TURN_HINT[help.turn]
+        TURN_HINT[sideTurn]
       )
     ) : help ? (
       <>
@@ -476,8 +501,8 @@ export function ScanView({
         </div>
       )}
 
-      {help?.turn && (
-        <span className={`scan__arrow scan__arrow--${help.turn}`} aria-hidden="true">
+      {sideTurn && (
+        <span className={`scan__arrow scan__arrow--${sideTurn}`} aria-hidden="true">
           <ArrowRightIcon />
         </span>
       )}
