@@ -120,9 +120,12 @@ const NEAR_OUT = 1.3; // "near" starts when a code in reach is on screen and end
 // this much (direction, distance) while it's off screen. Real tracking (WebXR) is trusted more.
 const GPS_XR_FAR = 8;
 const DRIFT = { xr: { turn: 60, metres: 6 }, view: { turn: 35, metres: 4 } };
-// GPS mode without WebXR: a code farther off in the view than the GPS allows comes this much closer
-// a second (units), so it's always reachable even when walking can't be read from the picture
-const CLOSE_IN = 0.6;
+// GPS mode without WebXR: how far off a code sits in the view follows the GPS distance to it, both
+// ways (it grows as the player walks up to it, shrinks as they back away): right at its spot it's at
+// DIST (big), at its collect distance a little past halfway to FAR, and farther off up to FAR (small).
+// It moves there gently (this many seconds to get most of the way), as the GPS wobbles a few metres.
+const GPS_AT_EDGE = 0.6;
+const GPS_EASE_S = 1.2;
 // The compass: how much each new reading moves the estimate of north (quicker at first)
 const NORTH_FIRST = 0.3;
 const NORTH_EASE = 0.05;
@@ -488,21 +491,29 @@ export async function createArStage(
    * (a reading of 8 m ±10 m can't tell from right there), so standing at the spot always puts it in
    * reach. With WebXR the phone's own tracking is real, so the GPS distance as it is.
    */
-  const gpsTarget = (n: Near) => gpsDistance(xr ? n.distance : n.distance - n.accuracy);
+  const gpsTarget = (n: Near) => (xr ? gpsDistance(n.distance) : viewDistance(n));
   /**
-   * Without WebXR, walking up to a code is read from the camera picture, which fails on a plain wall,
-   * in a dim hall or with a crowd passing: the code would stay "walk closer" for good. The GPS backs
-   * it up: a code farther off than gpsTarget comes closer, gently and along the line to it (so it
-   * stays where it is on screen, just bigger). Never pushed back: the picture may have read the walk.
+   * Without WebXR: how far off in the view a code goes, from the GPS distance to it (see GPS_AT_EDGE),
+   * so its size says how near it really is.
    */
-  const closeIn = (dt: number) => {
+  const viewDistance = (n: Near) => {
+    const per = (GPS_AT_EDGE * (FAR - DIST)) / Math.max(n.station.radius - 1, 3);
+    return THREE.MathUtils.clamp(DIST + (n.distance - 1) * per, DIST, FAR);
+  };
+  /**
+   * Without WebXR: each code eases to where the GPS puts it, along the line to it (so it stays where
+   * it is on screen, just bigger or smaller): closer as the player walks up, farther as they back away.
+   */
+  const follow = (dt: number) => {
+    const k = 1 - Math.exp(-dt / GPS_EASE_S);
     for (const c of codes) {
       const n = nearby.find((x) => x.station.id === c.station.id);
       if (c.got || !n) continue;
       gv.copy(c.spot.position).sub(cam.position);
       const d = gv.length();
-      const step = Math.min(d - gpsTarget(n), CLOSE_IN * dt);
-      if (step > 0) c.spot.position.addScaledVector(gv, -step / d);
+      if (d < 1e-3) continue;
+      const step = (d - viewDistance(n)) * k;
+      c.spot.position.addScaledVector(gv, -step / d);
     }
   };
   const onScreen = (c: Hidden) => {
@@ -839,12 +850,13 @@ export async function createArStage(
     cam.updateMatrixWorld();
     if (!xr && camOn) {
       const s = zoom.take();
-      if (s !== 1) {
+      // (GPS spots: the GPS says how near a code is, not the picture)
+      if (s !== 1 && !gpsMode) {
         walk(s);
         cam.updateMatrixWorld();
       }
     }
-    if (gpsMode && !xr && phase === "searching" && !active) closeIn(dt);
+    if (gpsMode && !xr && phase === "searching" && !active) follow(dt);
 
     if (phase === "searching") {
       // Is a hidden code held inside the scan frame, close enough to reveal (or too far: walk up to
@@ -870,9 +882,11 @@ export async function createArStage(
           if (seen) away = Math.min(away ?? Infinity, Math.max(1, far.distance - far.station.radius));
           continue;
         }
-        if (seen && d > reach) away = Math.min(away ?? Infinity, d);
-        else if (d <= reach && v.z < 0 && Math.abs(ndc.x) < AIM_X && Math.abs(ndc.y) < AIM_Y) aimed = c;
-        if (d <= reach && v.z < 0 && Math.abs(ndc.x) < out && Math.abs(ndc.y) < out) close = true;
+        // (GPS spots without WebXR: in range is close enough, whatever its size; the GPS decided)
+        const inReach = gpsMode && !xr ? true : d <= reach;
+        if (seen && !inReach) away = Math.min(away ?? Infinity, d);
+        else if (inReach && v.z < 0 && Math.abs(ndc.x) < AIM_X && Math.abs(ndc.y) < AIM_Y) aimed = c;
+        if (inReach && v.z < 0 && Math.abs(ndc.x) < out && Math.abs(ndc.y) < out) close = true;
       }
       setNear(close);
       ghostMat.opacity = 0.28 + 0.1 * Math.sin(now * 2.4);
