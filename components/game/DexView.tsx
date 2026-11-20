@@ -195,6 +195,8 @@ export function DexView({
               const { part, won } = prizeProgress(pr, me, spent);
               // A points prize: given to them already, or theirs to get with their points
               const cost = pr.rule === "cost";
+              // The leaderboard decides, after the hunt: no progress to show
+              const board = pr.rule === "board";
               const got = cost && Boolean(wallet?.given.includes(pr.id));
               const done = won || got;
               return (
@@ -215,7 +217,7 @@ export function DexView({
                             ? "You won it!"
                             : ruleText(pr, total)}
                     </p>
-                    {!done && (
+                    {!done && !board && (
                       <div className="bar bar--thin">
                         <span style={{ width: `${part * 100}%` }}></span>
                       </div>
@@ -225,7 +227,7 @@ export function DexView({
                     <button type="button" className="btn btn--primary btn--sm" onClick={() => onPrize(pr)}>
                       {got ? "View" : cost ? "Get it" : "Claim"}
                     </button>
-                  ) : (
+                  ) : board ? null : (
                     <span className="quest__count">{Math.round(part * 100)}%</span>
                   )}
                 </li>

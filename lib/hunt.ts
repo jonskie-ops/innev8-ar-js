@@ -203,7 +203,7 @@ export const unlocked = (s: Station, tasks: Record<string, unknown> | undefined)
  * Who wins a prize: every code, a number of codes, the legendary code, a number of points, a code the
  * organisers chose, or "cost": anyone with that many points to spend (the prize desk takes them).
  */
-export type PrizeRule = "all" | "count" | "legendary" | "points" | "code" | "cost";
+export type PrizeRule = "all" | "count" | "legendary" | "points" | "code" | "cost" | "board";
 export type Prize = {
   id: string;
   name: string;
@@ -357,6 +357,8 @@ export function ruleText(p: Prize, total: number) {
       return p.text || "Find a special QR code";
     case "cost":
       return `Costs ${v.toLocaleString("en-PH")} points`;
+    case "board":
+      return "Top hunters on the leaderboard win this, after the hunt";
   }
 }
 
@@ -383,7 +385,9 @@ export function prizeProgress(p: Prize, s: Standing, spent = 0) {
               : 0
             : p.rule === "cost"
               ? Math.max(0, s.score - spent) / v
-              : s.score / v;
+              : p.rule === "board"
+                ? 0 // (the leaderboard decides, after the hunt: never won here)
+                : s.score / v;
   const won = p.rule === "all" ? s.total > 0 && s.count >= s.total : part >= 1;
   return { part: Math.min(1, part), won };
 }
