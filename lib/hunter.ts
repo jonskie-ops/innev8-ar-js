@@ -212,6 +212,22 @@ export async function loadPrizes(name: string, province: string): Promise<PrizeC
   return r.prizes;
 }
 
+/**
+ * The player's prizes as the database has them now, quickly (no meetings, no finds sent first): for
+ * watching the prize desk check their hunter QR. Null without a signal or a hunter ID.
+ */
+export async function prizesNow(): Promise<PrizeClaim[] | null> {
+  const hunter = savedHunter();
+  if (!hunter) return null;
+  const r = await call<{ prizes: PrizeClaim[]; standing?: { spent?: unknown } }>("prizes", { id: hunter.id, secret: hunter.secret });
+  deletedHunter(r, hunter);
+  if (!("prizes" in r) || !Array.isArray(r.prizes)) return null;
+  const spent = r.standing?.spent;
+  if (typeof spent === "number" && Number.isFinite(spent))
+    progress.setWallet({ spent, given: r.prizes.filter((c) => c.claimed).map((c) => c.id) });
+  return r.prizes;
+}
+
 /** A row of the leaderboard: their rank, name and province, points and codes found (`me`: this player). */
 export type BoardRow = { rank: number; name: string; province: string; score: number; codes: number; me: boolean };
 /**

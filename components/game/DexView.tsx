@@ -42,9 +42,11 @@ export function DexView({
   const spent = wallet?.spent ?? 0;
   const toSpend = Math.max(0, me.score - spent);
   const shop = hunt.prizes.some((p) => p.rule === "cost");
+  // (and leaderboard prizes: one given to them at the desk shows as theirs)
+  const watch = shop || hunt.prizes.some((p) => p.rule === "board" || p.rule === "rank");
   useEffect(() => {
-    if (shop) void loadPrizes(name, province);
-  }, [shop, name, province]);
+    if (watch) void loadPrizes(name, province);
+  }, [watch, name, province]);
   const { count, total, kept } = me;
   const codes = [...hunt.stations, ...kept];
   const off = new Set(kept.map((s) => s.id));
@@ -196,8 +198,8 @@ export function DexView({
               // A points prize: given to them already, or theirs to get with their points
               const cost = pr.rule === "cost";
               // The leaderboard decides, after the hunt: no progress to show
-              const board = pr.rule === "board";
-              const got = cost && Boolean(wallet?.given.includes(pr.id));
+              const board = pr.rule === "board" || pr.rule === "rank";
+              const got = (cost || board) && Boolean(wallet?.given.includes(pr.id));
               const done = won || got;
               return (
                 <li key={pr.id} className={done ? "card quest prizeq is-done" : "card quest prizeq"}>

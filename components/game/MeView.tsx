@@ -4,7 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import { levelOf, standing } from "@/lib/hunt";
 import { useHunt } from "@/lib/huntStore";
-import { myHunter, savedHunter, savedMeetings, updateHunter, type Hunter, type Met } from "@/lib/hunter";
+import { useBack } from "@/lib/back";
+import { myHunter, prizesNow, savedHunter, savedMeetings, updateHunter, type Hunter, type Met } from "@/lib/hunter";
 import { PROVINCES } from "@/lib/site";
 import { progress } from "@/lib/store";
 import type { Phase } from "../Countdown";
@@ -14,6 +15,7 @@ import { I8Mark } from "./I8Mark";
 import {
   ArrowRightIcon,
   CalendarIcon,
+  CheckIcon,
   ChevronDownIcon,
   ClockIcon,
   DexIcon,
@@ -302,6 +304,43 @@ export function MeView({
 function HunterSection({ name, province }: { name: string; province: string }) {
   const [me, setMe] = useState<Hunter | null>(savedHunter);
   const [met, setMet] = useState<Met[]>(savedMeetings);
+  // The leaderboard prizes: the prize desk checks a winner by scanning this QR, and the phone says so
+  // (a pop-up the moment it happens, then a line under the QR). Watched while this is on screen: every
+  // few seconds from an hour before the hunt ends (prize time), less often before that.
+  const { hunt } = useHunt();
+  const board = hunt.prizes.filter((p) => p.rule === "board" || p.rule === "rank");
+  const boardKey = board.map((p) => `${p.id}:${p.name}`).join("|");
+  const boardRef = useRef(board);
+  useEffect(() => {
+    boardRef.current = board;
+  });
+  const [checked, setChecked] = useState<{ id: string; name: string } | null>(null);
+  const [news, setNews] = useState<string | null>(null);
+  const closeNews = () => setNews(null);
+  useBack(news !== null, closeNews);
+  const end = hunt.settings.end;
+  useEffect(() => {
+    if (!boardKey) return;
+    let alive = true;
+    let known: string | null | undefined; // (undefined: not looked yet, so no pop-up for one given before)
+    const look = async () => {
+      if (document.visibilityState !== "visible") return;
+      const all = await prizesNow();
+      if (!alive || !all) return;
+      const c = all.find((x) => x.claimed && boardRef.current.some((b) => b.id === x.id));
+      const prize = c ? boardRef.current.find((b) => b.id === c.id) : undefined;
+      const now = prize ? { id: prize.id, name: prize.name } : null;
+      if (known !== undefined && now && known !== now.id) setNews(now.name);
+      known = now?.id ?? null;
+      setChecked(now);
+    };
+    void look();
+    const t = window.setInterval(look, Date.now() > end - 3_600_000 ? 4_000 : 30_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [boardKey, end]);
   useEffect(() => {
     let alive = true;
     void myHunter(name, province).then(({ hunter, met }) => {
@@ -331,6 +370,14 @@ function HunterSection({ name, province }: { name: string; province: string }) {
         ) : (
           <p className="test-note">Connect to the internet once to get your hunter QR.</p>
         )}
+        {checked && (
+          <p className="hunter__checked" role="status">
+            <CheckIcon />
+            <span>
+              Checked at the {hunt.settings.claimPlace}: <b>{checked.name}</b>
+            </span>
+          </p>
+        )}
         <p className="hunter__how">
           Some QR codes have an extra task: meet another hunter. Let them scan this, or scan theirs. It counts for both
           of you.
@@ -346,6 +393,22 @@ function HunterSection({ name, province }: { name: string; province: string }) {
           </ul>
         )}
       </div>
+      {news !== null && (
+        <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="checked-title" aria-describedby="checked-text">
+          <div className="catch catch--legendary">
+            <p className="catch__eyebrow">Checked ✓</p>
+            <h2 id="checked-title">{news} is yours!</h2>
+            <p id="checked-text" className="catch__blurb">
+              The {hunt.settings.claimPlace} checked your hunter QR. Congratulations, {name}!
+            </p>
+            <div className="catch__btns">
+              <button type="button" className="btn btn--primary" onClick={closeNews} autoFocus>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -3678,6 +3678,31 @@ button.psec__head {
   display: grid;
   gap: 12px;
 }
+.hunter__checked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(214, 181, 109, 0.5);
+  border-radius: 14px;
+  background: rgba(214, 181, 109, 0.12);
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.hunter__checked b {
+  color: var(--gold);
+}
+.hunter__checked svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .hunter__how {
   color: var(--muted);
   font-size: 13px;
