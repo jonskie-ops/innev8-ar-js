@@ -19,6 +19,8 @@ export type HuntState = { hunt: Hunt; known: Record<string, Station>; ready: boo
 
 const KEY = "i8ar-hunt-v1";
 const EVERY_MS = 60_000;
+/** …and before the hunt starts: often, so it opens soon after the organisers press Start */
+const BEFORE_MS = 15_000;
 const AGAIN_MS = 15_000; // back to the front after at least this long: check again
 const WAIT_MS = 3000;
 
@@ -104,8 +106,10 @@ function start() {
     if (!read().ready) set({ ...read(), ready: true });
   }, WAIT_MS);
   setInterval(() => {
-    if (document.visibilityState === "visible") void refresh();
-  }, EVERY_MS);
+    if (document.visibilityState !== "visible") return;
+    const every = read().hunt.settings.start > Date.now() ? BEFORE_MS : EVERY_MS;
+    if (Date.now() - lastAsked >= every - 500) void refresh();
+  }, BEFORE_MS);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && Date.now() - lastAsked > AGAIN_MS) void refresh();
   });

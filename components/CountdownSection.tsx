@@ -2,20 +2,18 @@
 /* eslint-disable @next/next/no-img-element -- decorative full-bleed background, sized by CSS */
 
 import { useHunt } from "@/lib/huntStore";
-import { GOOGLE_CALENDAR_URL, ICS_URL } from "@/lib/site";
 import { CountdownClock } from "./Countdown";
-import { CalendarAddIcon, DownloadIcon } from "./icons";
 
 const TZ = "Asia/Manila";
-const dayFmt = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric" });
-const yearFmt = new Intl.DateTimeFormat("en-US", { timeZone: TZ, year: "numeric" });
-const longFmt = new Intl.DateTimeFormat("en-US", { timeZone: TZ, month: "long", day: "numeric" });
-const isoDay = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(ms); // 2026-11-20
+const whenFmt = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
+/**
+ * Before the hunt starts (its start time, from the admin's Settings, or until they press Start): "The
+ * hunt hasn't started yet", when it's planned, and the countdown to it. The page opens the hunt by
+ * itself once it starts (the hunt's settings are checked every few seconds until then).
+ */
 export function CountdownSection() {
-  // The summit's days, as set on the admin's Event page (Philippine time)
-  const { start, end } = useHunt().hunt.settings;
-  const sameDay = isoDay(start) === isoDay(end);
+  const { start } = useHunt().hunt.settings;
   return (
     <section className="countdown" id="countdown">
       <div className="countdown__media" aria-hidden="true">
@@ -23,36 +21,18 @@ export function CountdownSection() {
         <div className="countdown__veil"></div>
       </div>
       <div className="container countdown__inner">
-        <p className="eyebrow reveal">The road to {longFmt.format(start)}</p>
+        <p className="eyebrow reveal">INNEV8 QR Code Hunt · Regional ICT Summit 2026</p>
         <h1 className="reveal">
-          The countdown <span className="grad">is on.</span>
+          The hunt <span className="grad">hasn&apos;t started yet.</span>
         </h1>
         <CountdownClock />
         <div className="save reveal" id="save">
           <p className="save__date">
             <strong>
-              {!sameDay && (
-                <>
-                  <time dateTime={isoDay(start)}>{dayFmt.format(start)}</time> –{" "}
-                </>
-              )}
-              <time dateTime={isoDay(end)}>
-                {dayFmt.format(end)}, {yearFmt.format(end)}
-              </time>
+              Planned: <time dateTime={new Date(start).toISOString()}>{whenFmt.format(start)}</time>
             </strong>
-            <span>Leyte Academic Center · Palo, Leyte</span>
+            <span>Stay on this page: it opens by itself when the organisers start the hunt.</span>
           </p>
-          <div className="save__btns">
-            <a className="btn btn--primary" target="_blank" rel="noopener" href={GOOGLE_CALENDAR_URL}>
-              <CalendarAddIcon />
-              Google Calendar
-            </a>{" "}
-            <a className="btn btn--ghost" href={ICS_URL} download>
-              <DownloadIcon />
-              Apple / Outlook (.ics)
-            </a>
-          </div>
-          <p className="save__note">Registration opens soon.</p>
         </div>
       </div>
     </section>
