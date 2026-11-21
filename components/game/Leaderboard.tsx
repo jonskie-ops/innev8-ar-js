@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { loadBoard, type Board, type BoardRow } from "@/lib/hunter";
 import { CloseIcon, TrophyIcon } from "./icons";
 
-/** How often the leaderboard is fetched again while the game is open */
+/** How often the leaderboard is fetched again while the game is open (for the rank chip) */
 const EVERY_MS = 45_000;
+/** …and while the player has the leaderboard open: nearly live, so they can watch #1 change */
+const OPEN_MS = 10_000;
 
 /**
- * The leaderboard, kept fresh: fetched now, every 45 s while the game is on screen, when it comes back
+ * The leaderboard, kept fresh: fetched now, every 45 s while the game is on screen (every 10 s while
+ * the leaderboard is open), when it comes back
  * on screen, after this player finds a code (`found` changes) and when the leaderboard is opened.
  * Null until it's arrived (no signal, no hunter ID yet, or a database without the leaderboard update:
  * then the game has no leaderboard). Without a signal it keeps the last one.
@@ -25,7 +28,7 @@ export function useBoard(name: string, province: string, on: boolean, found: num
       });
     };
     load();
-    const t = window.setInterval(load, EVERY_MS);
+    const t = window.setInterval(load, open ? OPEN_MS : EVERY_MS);
     document.addEventListener("visibilitychange", load);
     return () => {
       alive = false;
